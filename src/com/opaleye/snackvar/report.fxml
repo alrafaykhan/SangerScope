@@ -16,7 +16,7 @@
 				<VBox fx:id="outerVBox">
 					<VBox fx:id="vBox" prefHeight="137.0" prefWidth="1087.0">
 						<children>
-							<Label prefHeight="19.0" prefWidth="242.0" text="SnackVar Report">
+							<Label prefHeight="19.0" prefWidth="242.0" text="SangerScope Report">
 								<font>
 									<Font size="24.0" />
 								</font>

@@ -2060,7 +2060,7 @@ public class RootController implements Initializable {
 			controller.setRefFileName(refFileLabel.getText());
 			controller.setVariantReportList(variantReportList);
 			stage.setScene(new Scene(root1));
-			stage.setTitle("SnackVar Report");
+			stage.setTitle("SangerScope Report");
 			//stage.setAlwaysOnTop(true);
 			stage.initOwner(primaryStage);
 

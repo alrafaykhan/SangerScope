@@ -38,7 +38,7 @@ public class MainStage extends Application {
 
 		primaryStage.setX(0);
 		primaryStage.setY(0);
-		primaryStage.setTitle("SnackVAR Ver. " + RootController.version);
+		primaryStage.setTitle("SangerScope Ver. " + RootController.version);
 		FXMLLoader loader = new FXMLLoader(getClass().getResource("MainStage.fxml"));
 		
 		Parent root = loader.load();

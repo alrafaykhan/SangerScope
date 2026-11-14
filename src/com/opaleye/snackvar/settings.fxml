@@ -41,7 +41,7 @@
       </HBox>
       <HBox>
          <children>
-            <Label styleClass="descriptionClass" text="SnackVar automatic trimming requires user confirmation" />
+            <Label styleClass="descriptionClass" text="SangerScope automatic trimming requires user confirmation" />
          </children>
       </HBox>
       <HBox>

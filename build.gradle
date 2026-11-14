@@ -52,7 +52,7 @@ application {
     mainClass = 'com.opaleye.snackvar.MainStage'
 }
 
-// SnackVar looks for the bundled reference sequences in ./reference
+// SangerScope looks for the bundled reference sequences in ./reference
 tasks.named('run') {
     workingDir = projectDir
 }
