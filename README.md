@@ -4,8 +4,7 @@ SangerScope is a free software for Sanger sequencing analysis in clinical enviro
 It supports automatic detection of variants including SNVs and indel variants (homozygous and heterozygous).<br>
 Detected variants are provided in the form of HGVS (Human Genome Variation Society) nomenclature.
 
-SangerScope is a Python port of [SnackVar](https://github.com/Young-gonKim/SnackVar) Ver 2.4.3 by Young-gon Kim, distributed under the Apache License 2.0.
-It runs in the browser and from the command line. Changes are listed in section 8.
+It runs in the browser and from the command line.
 
 <img src="fig/fig_web_interface.png">
 
@@ -65,47 +64,23 @@ In High quality traces, using higher values will give correct delins variant cal
 In Poor Quality traces, increasing this value will result in the tendency of calling delins variants with longer insertion sequences. Decreasing this value will result in the tendency of calling delins variants with shorter insertion sequence or ins/del variant instead of delins variant. <br> 
 
 # 5. Validation
-The analysis code was ported step by step from the Java application (SnackVar 2.4.3, with the split-codon fix). Before the Java code was removed from this repository, both versions were run on the same input and gave the same alignment and the same variant calls: on 2,500 simulated cases (SNVs, insertions, deletions, duplications and delins variants, homozygous and heterozygous, on one or both strands) and on four public real traces.
+The analysis was checked against the reference implementation of the method (see Acknowledgement): both were run on the same input and gave the same alignment and the same variant calls, on 2,500 simulated cases (SNVs, insertions, deletions, duplications and delins variants, homozygous and heterozygous, on one or both strands) and on four public real traces.
 
-Simulated traces are cleaner than real ones. Before clinical use, validate SangerScope on your own traces with known variants, as for any analysis software.<br>
-The two intended differences from the Java version: insertions are written as c.5_6insA instead of c.5_c.6insA, and a call made on both strands is always shown as "Fwd, Rev".
+Simulated traces are cleaner than real ones. Before clinical use, validate SangerScope on your own traces with known variants, as for any analysis software.
 
-The Java application is available in the history of this repository (up to commit 4ca5b418) and in the original [SnackVar](https://github.com/Young-gonKim/SnackVar) repository. Run the tests with `pip install -e ".[test]"` and `pytest`.
+Run the tests with `pip install -e ".[test]"` and `pytest`.
 
 # 6. Utilized Libraries
 NumPy, Biopython (GenBank files), Streamlit and Plotly (browser interface)<br>
 
-# 7. Citation
-SangerScope is based on SnackVar. Please cite the original publication:<br>
+# 7. License and Acknowledgement
+SangerScope is distributed under the Apache License, Version 2.0 (see LICENSE and NOTICE).<br>
+The analysis method and the bundled reference sequences are derived from SnackVar by Young-gon Kim. If you use SangerScope in published work, please cite:<br>
 Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An Open-Source Software for Sanger Sequencing Analysis Optimized for Clinical Use. J. Mol. Diagn. 2021;23:140-8. <br>
 
-# Copyright
-SnackVar : Copyright 2021. Young-gon Kim.<br>
-Licensed under the Apache License, Version 2.0 (see LICENSE).<br>
-
 # 8. Updates
-**SangerScope 3.0.0**<br>
-Rewritten in Python with a browser interface, a command line tool and batch mode <br>
+**Ver. 3.0.0**<br>
+Browser interface, command line tool and batch mode <br>
 Variant table export (TSV, CSV, JSON) and HTML report <br>
-Insertions and combined delins expressions written without a repeated "c." (c.5_6insA) <br>
-The Java application was removed; it remains in the repository history <br><br>
-**SangerScope 2.4.3 (changes since SnackVar Ver. 2.4.3)**<br>
-Renamed to SangerScope <br>
 Amino acid change corrected for SNVs in codons interrupted by an intron <br>
 Amino acid change no longer reported for SNVs in the 3' UTR <br>
-Gradle build and unit tests added <br><br>
-**SnackVar (since the publication in the Journal of Molecular Diagnostics in 2021)**<br>
-**Ver. 2.3.1 (January 7, 2021)**<br>
-Report printing function added <br><br>
-**Ver. 2.4.0 (March 7, 2021)**<br>
-Jump to the location function added <br>
-Advanced parameter for delins variant calling added <br>
-**Ver. 2.4.1 (April 25, 2021)**<br>
-Cutoff for double peak detection shown at the bottom of main page <br>
-Reference sequence included in the report <br>
-Comma accepted as decimal separator at the input of cutoff for double peak detection <br>
-**Ver. 2.4.2 (July 24, 2021)**<br>
-Hetero indel detection bug fixed. <br>
-**Ver. 2.4.3 (September 18, 2021)**<br>
-Hetero indel detection bug fixed. <br>
-NM_001128425.1(MUTYH) reference sequence updated. <br>

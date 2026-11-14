@@ -1,3 +1,3 @@
-"""SangerScope: Sanger sequencing variant analysis (Python port of SnackVar 2.4.3)."""
+"""SangerScope: Sanger sequencing variant analysis."""
 
 __version__ = "3.0.0"

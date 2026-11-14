@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sangerscope"
 version = "3.0.0"
-description = "Sanger sequencing variant analysis with HGVS nomenclature (Python port of SnackVar)"
+description = "Sanger sequencing variant analysis with HGVS nomenclature"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"

@@ -1,0 +1,17 @@
+SangerScope
+Copyright 2026 SangerScope contributors
+
+This product is a derivative work of SnackVar 2.4.3
+(https://github.com/Young-gonKim/SnackVar)
+Copyright 2021 Young-gon Kim
+Licensed under the Apache License, Version 2.0.
+
+The analysis method (trimming, alignment, heterozygous indel detection,
+variant calling and HGVS naming) was translated from the Java source code of
+SnackVar into Python and modified. The bundled reference sequences in the
+"reference" folder are those distributed with SnackVar.
+
+Method publication:
+Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW.
+SnackVar: An Open-Source Software for Sanger Sequencing Analysis Optimized
+for Clinical Use. J. Mol. Diagn. 2021;23:140-8.
