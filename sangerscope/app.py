@@ -106,13 +106,13 @@ def trace_figure(
             )
         if len(rows) > 1:
             fig.add_annotation(
-                x=0, xref="paper", y=y, text=label, showarrow=False, xanchor="left",
-                font=dict(size=10, color="#666666"), bgcolor="rgba(255,255,255,0.85)",
+                x=0, xref="paper", y=y, text=label, showarrow=False, xanchor="right", xshift=-6,
+                font=dict(size=10, color="#666666"),
             )
     for x0, x1, colour in shade or []:
         fig.add_vrect(x0=x0, x1=x1, fillcolor=colour, opacity=0.28, line_width=0, layer="below")
     fig.update_layout(
-        height=height + 22 * (len(rows) - 1), margin=dict(l=10, r=10, t=10, b=10),
+        height=height + 22 * (len(rows) - 1), margin=dict(l=110 if len(rows) > 1 else 10, r=10, t=10, b=10),
         paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(color=INK),
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1, font=dict(color=INK)),
         xaxis=dict(range=list(x_range) if x_range else None, showgrid=False, zeroline=False, showticklabels=False),
@@ -274,7 +274,7 @@ def trim_panel(label: str, key: str, data: bytes) -> tuple[int, int] | None:
             hover=[f"base {i + 1}: {raw.sequence[i]} (Q{raw.q_calls[i]})" for i in range(raw.sequence_length)],
             height=220,
         )
-        st.plotly_chart(fig, use_container_width=True, key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
+        st.plotly_chart(fig, width="stretch", key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
         st.caption("Grey areas are trimmed. Scroll to zoom, drag to pan.")
     return positions
 
@@ -296,15 +296,14 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
                     "Protein": v.protein,
                     "Zygosity": v.zygosity,
                     "Detected in": v.detected_in,
-                    "Both traces cover it": "yes" if v.on_target else "no",
-                    "Equivalent expressions": v.to_dict()["equivalent_expressions"],
+                                        "Equivalent expressions": v.to_dict()["equivalent_expressions"],
                 }
                 for v in variants
             ]
         )
         st.subheader(f"Variants ({len(variants)})")
         event = st.dataframe(
-            table, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key="variant_table"
+            table, width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key="variant_table"
         )
         st.caption("Select a row to see the variant in the traces and the alignment.")
         rows = event.selection.rows if event and event.selection else []
@@ -333,7 +332,7 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
                 extra_rows=[("Reference allele", list(hetero.ref_seq)), ("Other allele", other)],
                 hover=base_hover(result, hetero.direction),
             )
-            st.plotly_chart(fig, use_container_width=True, key=f"hetfig_{label}", config={"scrollZoom": True, "displaylogo": False})
+            st.plotly_chart(fig, width="stretch", key=f"hetfig_{label}", config={"scrollZoom": True, "displaylogo": False})
             kind = "insertion" if hetero.ins_or_del == 1 else "deletion"
             st.caption(
                 f"Double peaks start at base {start} (highlighted); the two alleles are shifted by {hetero.indel_size} "
@@ -354,33 +353,31 @@ def show_variant(result: Result, variant) -> None:
     span = 1
     if isinstance(variant, Indel) and variant.zygosity == "homo":
         span = max(1, variant.g_index2 - variant.g_index + 1)
+    hetero_indel = isinstance(variant, Indel) and variant.zygosity == "hetero"
     for label, trace, direction in (("Forward trace", result.fwd_trace, 1), ("Reverse trace", result.rev_trace, -1)):
         if trace is None:
             continue
         cmap = result.formatter.fwd_coordinate_map if direction == 1 else result.formatter.rev_coordinate_map
-        inverse = {col: base for base, col in cmap.items()}
-        # nearest trace base at or after the variant's alignment column
-        base_number = None
-        for col in range(column, min(column + span + 400, len(result.aligned_points) + 1)):
-            if col in inverse:
-                base_number = inverse[col]
-                break
-        if base_number is None:
-            for col in range(column, 0, -1):
-                if col in inverse:
-                    base_number = inverse[col]
-                    break
-        if base_number is None:
+        base_number = variant.fwd_trace_index if direction == 1 else variant.rev_trace_index
+        trace_char = variant.fwd_trace_char if direction == 1 else variant.rev_trace_char
+        mapped = cmap.get(base_number)
+        if mapped is None or base_number < 1 or base_number > trace.sequence_length:
+            st.caption(f"{label}: does not cover this position.")
             continue
-        covered = cmap and min(cmap.values()) <= column <= max(cmap.values())
-        st.caption(label + ("" if covered else " (does not cover this position)"))
+        if hetero_indel and trace_char in ("", GAP):
+            st.caption(f"{label}: this heterozygous indel was not detected in this trace.")
+            continue
+        if not hetero_indel and abs(mapped - column) > span + 1:
+            st.caption(f"{label}: does not cover this position.")
+            continue
+        st.caption(label)
         x = trace.base_calls[base_number - 1]
         fig = trace_figure(
             trace, x_range=window(trace, base_number),
-            shade=[(x - 5, x + 5, "#f5c542")] if covered else None,
+            shade=[(x - 5, x + 5, "#f5c542")],
             hover=base_hover(result, direction),
         )
-        st.plotly_chart(fig, use_container_width=True, key=f"varfig_{direction}", config={"scrollZoom": True, "displaylogo": False})
+        st.plotly_chart(fig, width="stretch", key=f"varfig_{direction}", config={"scrollZoom": True, "displaylogo": False})
 
 
 # ----------------------------------------------------------------------------- page
