@@ -170,6 +170,12 @@ def cmd_app(args) -> int:
         "--server.address", "localhost",
         "--server.headless", "true",
         "--browser.gatherUsageStats", "false",
+        "--client.toolbarMode", "minimal",
+        "--theme.base", "light",
+        "--theme.primaryColor", "#0f766e",
+        "--theme.backgroundColor", "#f3f7f6",
+        "--theme.secondaryBackgroundColor", "#e6eeec",
+        "--theme.textColor", "#10302c",
     ]
     print(f"SangerScope is starting at {url}")
     print("Keep this window open while you use it; close it (or press Ctrl+C) to stop.")

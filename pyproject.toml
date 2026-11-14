@@ -26,6 +26,9 @@ sangerscope = "sangerscope.cli:main"
 [tool.setuptools]
 packages = ["sangerscope"]
 
+[tool.setuptools.package-data]
+sangerscope = ["assets/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]

@@ -25,6 +25,8 @@ Compression=lzma2/max
 SolidCompression=yes
 LZMANumBlockThreads=4
 WizardStyle=modern
+SetupIconFile={#RepoRoot}\packaging\windows\SangerScope.ico
+UninstallDisplayIcon={app}\SangerScope.ico
 UninstallDisplayName=SangerScope
 
 [Tasks]
@@ -33,6 +35,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"
 [Files]
 Source: "{#StageDir}\python\*"; DestDir: "{app}\python"; Flags: recursesubdirs ignoreversion
 Source: "{#StageDir}\SangerScope.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\packaging\windows\SangerScope.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\reference\*"; DestDir: "{app}\reference"; Flags: ignoreversion
 Source: "{#RepoRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
@@ -40,9 +43,9 @@ Source: "{#RepoRoot}\Terms_of_use.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\SangerScope"; Filename: "{app}\SangerScope.bat"; WorkingDir: "{app}"; Comment: "Sanger sequencing variant analysis"
+Name: "{group}\SangerScope"; Filename: "{app}\SangerScope.bat"; WorkingDir: "{app}"; IconFilename: "{app}\SangerScope.ico"; Comment: "Sanger sequencing variant analysis"
 Name: "{group}\Uninstall SangerScope"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\SangerScope"; Filename: "{app}\SangerScope.bat"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userdesktop}\SangerScope"; Filename: "{app}\SangerScope.bat"; WorkingDir: "{app}"; IconFilename: "{app}\SangerScope.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\SangerScope.bat"; Description: "Start SangerScope now"; Flags: postinstall nowait skipifsilent

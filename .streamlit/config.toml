@@ -1,0 +1,14 @@
+# Used when the interface is started with "streamlit run sangerscope/app.py";
+# "sangerscope app" passes the same settings itself.
+[theme]
+base = "light"
+primaryColor = "#0f766e"
+backgroundColor = "#f3f7f6"
+secondaryBackgroundColor = "#e6eeec"
+textColor = "#10302c"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
