@@ -28,6 +28,9 @@ class Reference:
     cdna_start: list[int] | None = None
     cdna_end: list[int] | None = None
     transcripts: list[TranscriptVariant] = field(default_factory=list)
+    #: NCBI genetic code used for the protein effect (1 = standard, 11 = bacteria, 4 = mycoplasma, ...).
+    codon_table: int = 1
+    description: str = ""
 
     # ------------------------------------------------------------------ FASTA
 
@@ -39,9 +42,11 @@ class Reference:
         seq: list[str] = []
         in_coding = False
         counter = 1
+        header = ""
         for line in text.splitlines():
             if ">" in line:
                 # a header runs from '>' to the end of its line
+                header = header or line[line.index(">") + 1 :]
                 line = line[: line.index(">")]
             for ch in line:
                 if ch in "ATGC":
@@ -60,7 +65,23 @@ class Reference:
             ends.append(counter - 1)
         if not starts:
             raise ReferenceError("No coding region (upper case letters) found in the reference file")
-        return cls(name, "".join(seq), starts, ends)
+        reference = cls(name, "".join(seq), starts, ends)
+        # optional annotations written by SangerScope when it saves a downloaded reference
+        table = re.search(r"transl_table=(\d+)", header)
+        if table:
+            reference.codon_table = int(table.group(1))
+        cds = re.search(r"cds=([0-9,\-]+)", header)
+        if cds:
+            try:
+                pairs = [tuple(int(x) for x in item.split("-")) for item in cds.group(1).split(",")]
+                if all(len(p) == 2 and 1 <= p[0] <= p[1] <= len(seq) for p in pairs):
+                    reference.cdna_start = [p[0] for p in pairs]
+                    reference.cdna_end = [p[1] for p in pairs]
+            except ValueError:
+                pass
+        if " " in header and ("transl_table=" in header or "cds=" in header):
+            reference.description = header.split(" ", 1)[1].split(" | transl_table=")[0].strip()
+        return reference
 
     # ---------------------------------------------------------------- GenBank
 
@@ -147,6 +168,29 @@ class Reference:
 
     def spliced(self) -> str:
         return "".join(self.sequence[s - 1 : e] for s, e in zip(self.cdna_start, self.cdna_end))
+
+    def aa(self, triple: str) -> str:
+        """Three-letter amino acid of a codon ('*' for stop) in this reference's genetic code."""
+        from .symbols import UntranslatableError, aa_from_triple
+
+        if self.codon_table in (1, 11):  # the bacterial code differs from the standard one only in start codons
+            return aa_from_triple(triple)
+        if len(triple) < 3:
+            raise IndexError("codon shorter than three bases")
+        from Bio.Data import CodonTable
+        from Bio.SeqUtils import seq3
+
+        try:
+            table = CodonTable.unambiguous_dna_by_id[self.codon_table]
+        except KeyError:
+            return aa_from_triple(triple)
+        codon = triple.upper()
+        if codon in table.stop_codons:
+            return "*"
+        try:
+            return seq3(table.forward_table[codon])
+        except KeyError:
+            raise UntranslatableError(triple) from None
 
     def codon_at(self, g_index: int, frame: int) -> str | None:
         """Codon containing a reference position, assembled across introns.

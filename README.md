@@ -27,7 +27,11 @@ sangerscope app
 The bundled reference transcripts are read from the `reference` folder of the repository; set `SANGERSCOPE_REFERENCE_DIR` to use another folder.
 
 # 2. How to Use
-1. Choose a reference sequence: search the bundled RefSeq transcripts by gene name or accession, or upload your own FASTA (coding regions in upper case, everything else in lower case) or GenBank file.<br>
+1. Choose a reference sequence:<br>
+&nbsp;&nbsp;- **Human genes (built in):** search the bundled RefSeq transcripts by gene name or accession.<br>
+&nbsp;&nbsp;- **Any organism (NCBI):** bacteria, viruses or any other organism. Search by organism and gene name (for example "Mycobacterium tuberculosis" and "rpoB"), or give the accession of a genome, plasmid or gene record (for example NC_045512.2) and pick a gene from its list. The gene is downloaded from NCBI with 500 bases on each side, turned to read forwards if it lies on the reverse strand, and numbered from its start codon. The protein effect uses the genetic code of the organism. Only the search words or the accession are sent to NCBI; trace files stay on your computer.<br>
+&nbsp;&nbsp;- **My saved references:** every gene downloaded from NCBI is kept on your computer (in the `.sangerscope/references` folder of your user folder) and works without internet afterwards.<br>
+&nbsp;&nbsp;- **My own file:** a FASTA (coding regions in upper case, everything else in lower case) or GenBank file.<br>
 2. Add a forward and/or reverse trace file (.ab1).<br>
 3. Check the trimming of the low-quality ends.<br>
 Proper trimming is important for the correct identification of a heterozygous indel variant.<br>
@@ -45,7 +49,14 @@ One sample:
 sangerscope run --ref "NM_000059.3(BRCA2)" --fwd sample_F.ab1 --rev sample_R.ab1 --report sample.html
 ```
 
-`--ref` takes a FASTA/GenBank file, a bundled transcript name, or a gene symbol that has a single bundled transcript. The variant table is written to standard output (`--format tsv|csv|json`, `--out FILE`).
+`--ref` takes a FASTA/GenBank file, a bundled transcript name, or a gene symbol that has a single bundled transcript. A reference for another organism is downloaded once with `sangerscope fetch` and then used by name:
+
+```bash
+sangerscope fetch --organism "Mycobacterium tuberculosis" --gene rpoB
+sangerscope run --ref "NC_000962.3(rpoB)" --fwd sample_F.ab1 --rev sample_R.ab1
+```
+
+`sangerscope fetch --accession NC_045512.2` lists the genes of a record; add `--gene S` to download one. The variant table is written to standard output (`--format tsv|csv|json`, `--out FILE`).
 
 Many samples, listed in a CSV or TSV manifest with the columns `sample`, `reference`, `forward`, `reverse`:
 
@@ -86,6 +97,7 @@ Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An
 
 # 8. Updates
 **Ver. 3.0.0**<br>
+References for any organism from NCBI, by organism and gene name or by accession <br>
 Signal quality rating for every variant and a warning for poor traces <br>
 Browser interface, command line tool and batch mode <br>
 Variant table export (TSV, CSV, JSON) and HTML report <br>

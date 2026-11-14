@@ -162,8 +162,9 @@ class SNV(Variant):
             return
         mutated = original[:frame] + self.alt_char + original[frame + 1 :]
         codon_number = (c_number - 1) // 3 + 1
+        aa = ctx.reference.aa
         try:
-            self.aa_change = f"p.({aa_from_triple(original)}{codon_number}{aa_from_triple(mutated)})"
+            self.aa_change = f"p.({aa(original)}{codon_number}{aa(mutated)})"
         except UntranslatableError:
             self.aa_change = "(untranslatable)"
 
@@ -343,6 +344,7 @@ class Indel(Variant):
         reference = ctx.reference
         ref = reference.sequence
         original = reference.spliced() + ref[reference.cdna_end[-1] :]
+        self._aa = reference.aa
         try:
             self._aa_change_from(original)
         except UntranslatableError:
@@ -379,8 +381,8 @@ class Indel(Variant):
         while i < len(shifted):
             if i + 3 > len(original):
                 break
-            original_aa = aa_from_triple(jsub(original, i, i + 3))
-            shifted_aa = aa_from_triple(jsub(shifted, i, i + 3))
+            original_aa = self._aa(jsub(original, i, i + 3))
+            shifted_aa = self._aa(jsub(shifted, i, i + 3))
             # a stop codon as the first changed amino acid is a nonsense change, not a frameshift
             if shifted_aa == "*":
                 self.aa_change = f"p.({original_aa}{i // 3 + 1}{shifted_aa})"
@@ -397,7 +399,7 @@ class Indel(Variant):
                 if i + 3 > len(original):
                     break
                 count += 1
-                if aa_from_triple(jsub(shifted, i, i + 3)) == "*":
+                if self._aa(jsub(shifted, i, i + 3)) == "*":
                     terminal_found = True
                     break
                 i += 3
@@ -406,8 +408,8 @@ class Indel(Variant):
         self.aa_change = f"{prefix}*{count})" if terminal_found else f"{prefix})"
 
     def _in_frame(self, original: str, shifted: str) -> None:
-        original_aa = [aa_from_triple(original[i : i + 3]) for i in range(0, len(original) - 2, 3)]
-        shifted_aa = [aa_from_triple(shifted[i : i + 3]) for i in range(0, len(shifted) - 2, 3)]
+        original_aa = [self._aa(original[i : i + 3]) for i in range(0, len(original) - 2, 3)]
+        shifted_aa = [self._aa(shifted[i : i + 3]) for i in range(0, len(shifted) - 2, 3)]
         if original_aa == shifted_aa:
             self.aa_change = "no amino acid change"
             return

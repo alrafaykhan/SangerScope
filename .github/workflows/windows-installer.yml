@@ -51,6 +51,16 @@ jobs:
           if (-not (Select-String -Path C:\smoke\out.tsv -SimpleMatch $expected)) { throw "expected variant $expected not found" }
           & $py -m sangerscope run --ref "NM_000546.5(TP53)" --fwd C:\smoke\s_F.ab1 2>&1 | Select-Object -First 3
 
+      - name: Download a reference from NCBI with the installed application
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $env:SANGERSCOPE_HOME = "C:\smoke\home"
+          Set-Location C:\SangerScopeTest
+          & "C:\SangerScopeTest\python\python.exe" -m sangerscope fetch --accession NC_045512.2 --gene N
+          if ($LASTEXITCODE -ne 0) { throw "NCBI download failed" }
+          Get-ChildItem C:\smoke\home\references
+
       - name: Start the browser interface of the installed application
         shell: pwsh
         run: |

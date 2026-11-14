@@ -49,9 +49,12 @@ def resolve(spec: str, reference_dir: Path | None = None) -> Reference:
     if path.is_file():
         return Reference.from_file(path)
     directory = reference_dir or default_reference_dir()
-    candidate = directory / f"{spec}.fasta"
-    if candidate.is_file():
-        return Reference.from_file(candidate)
+    from .ncbi import user_reference_dir
+
+    for folder in (directory, user_reference_dir()):
+        candidate = folder / f"{spec}.fasta"
+        if candidate.is_file():
+            return Reference.from_file(candidate)
     if directory.is_dir():
         suffix = f"({spec.upper()}).FASTA"
         matches = sorted(p for p in directory.iterdir() if p.name.upper().endswith(suffix))

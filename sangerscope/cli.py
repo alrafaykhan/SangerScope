@@ -129,6 +129,54 @@ def cmd_batch(args) -> int:
     return 1 if failures else 0
 
 
+def cmd_fetch(args) -> int:
+    """Download a reference from NCBI and save it for later runs."""
+    from . import ncbi
+
+    try:
+        if args.accession:
+            info = ncbi.record_info(args.accession)
+            if not args.gene:
+                print(f"{info.accession}  {info.title}  ({len(info.genes)} coding sequences)")
+                for g in info.genes:
+                    print("  " + g.label)
+                print("Choose one with --gene NAME.", file=sys.stderr)
+                return 0
+            matches = ncbi.find_gene(info, args.gene)
+            if not matches:
+                print(f"error: {info.accession} has no coding sequence named {args.gene}", file=sys.stderr)
+                return 1
+            reference = ncbi.reference_for_cds(info.accession, matches[0])
+        elif args.organism and args.gene:
+            hits = ncbi.search_genes(args.organism, args.gene)
+            if hits:
+                if len(hits) > 1:
+                    print("Several genes match; using the first. Use --accession to choose another:", file=sys.stderr)
+                    for h in hits[:8]:
+                        print("  " + h.label, file=sys.stderr)
+                reference = ncbi.reference_for_hit(hits[0])
+            else:
+                records = ncbi.search_records(args.organism, args.gene)
+                if not records:
+                    print(f"error: NCBI has no gene {args.gene} for {args.organism}", file=sys.stderr)
+                    return 1
+                print("NCBI Gene has no entry, but these sequence records carry the gene. Fetch one with", file=sys.stderr)
+                print("  sangerscope fetch --accession ACCESSION --gene " + args.gene, file=sys.stderr)
+                for r in records:
+                    print("  " + r.label, file=sys.stderr)
+                return 1
+        else:
+            print("error: give --organism and --gene, or --accession (and --gene)", file=sys.stderr)
+            return 2
+        path = ncbi.save_reference(reference)
+    except (ncbi.NcbiError, ReferenceError, OSError) as ex:
+        print(f"error: {ex}", file=sys.stderr)
+        return 1
+    print(f"{reference.name}\t{path}")
+    print(f"Saved. Use it with: sangerscope run --ref \"{reference.name}\" ...", file=sys.stderr)
+    return 0
+
+
 def _free_port(preferred: int) -> int:
     """`preferred` if nothing listens on it, otherwise a free port chosen by the system."""
     import socket
@@ -193,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="analyse one sample")
-    run.add_argument("--ref", required=True, help="reference: FASTA/GenBank file, bundled name such as 'NM_000059.3(BRCA2)', or a gene symbol with one bundled transcript")
+    run.add_argument("--ref", required=True, help="reference: FASTA/GenBank file, bundled name such as 'NM_000059.3(BRCA2)', a gene symbol with one bundled transcript, or a reference saved with 'sangerscope fetch'")
     run.add_argument("--fwd", help="forward trace (.ab1)")
     run.add_argument("--rev", help="reverse trace (.ab1)")
     run.add_argument("--transcript", type=int, help="transcript number for a GenBank reference with several")
@@ -209,6 +257,12 @@ def main(argv: list[str] | None = None) -> int:
     batch.add_argument("--report-dir", help="also write one HTML report per sample into this folder")
     _add_settings(batch)
     batch.set_defaults(func=cmd_batch)
+
+    fetch = sub.add_parser("fetch", help="download a reference for any organism from NCBI and save it")
+    fetch.add_argument("--organism", help="organism name, for example \"Mycobacterium tuberculosis\"")
+    fetch.add_argument("--gene", help="gene name, for example rpoB")
+    fetch.add_argument("--accession", help="NCBI nucleotide accession, for example NC_000962.3")
+    fetch.set_defaults(func=cmd_fetch)
 
     app = sub.add_parser("app", help="start the browser interface")
     app.add_argument("--port", type=int, default=None)

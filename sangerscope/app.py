@@ -25,6 +25,7 @@ from sangerscope.analysis import (
     Settings,
     load_trace,
 )
+from sangerscope import ncbi
 from sangerscope.export import alignment_blocks, to_delimited, to_html_report, to_json
 from sangerscope.reference import Reference, ReferenceError, list_bundled_references
 from sangerscope.refs import default_reference_dir, search
@@ -261,36 +262,148 @@ def card_title(number: int, title: str, hint: str = "") -> None:
 # ----------------------------------------------------------------------------- inputs
 
 
+SOURCES = ["Human genes (built in)", "Any organism (NCBI)", "My saved references", "My own file"]
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def ncbi_search_genes(organism: str, gene: str):
+    return ncbi.search_genes(organism, gene)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def ncbi_search_records(organism: str, gene: str):
+    return ncbi.search_records(organism, gene)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def ncbi_record_info(accession: str):
+    return ncbi.record_info(accession)
+
+
+def _use_downloaded(reference: Reference) -> None:
+    """Save a downloaded reference and make it the selected one."""
+    path = ncbi.save_reference(reference)
+    st.session_state["ncbi_reference_path"] = str(path)
+
+
+def _gene_picker(info, preselect: str = "") -> None:
+    """List the coding sequences of a record and download the chosen one."""
+    st.caption(f"{info.accession} · {info.title} · {info.length:,} bases · {len(info.genes):,} coding sequences")
+    options = info.genes
+    index = 0
+    if preselect:
+        matches = ncbi.find_gene(info, preselect)
+        if matches:
+            index = options.index(matches[0])
+    choice = st.selectbox(
+        "Gene", range(len(options)), index=index, format_func=lambda i: options[i].label,
+        help="Type in the box to search the list by gene name or product.", key=f"gene_{info.accession}",
+    )
+    if st.button("Use this gene", key=f"use_{info.accession}", type="primary"):
+        with st.spinner("Downloading the gene from NCBI…"):
+            _use_downloaded(ncbi.reference_for_cds(info.accession, options[choice]))
+
+
+def ncbi_panel() -> Reference | None:
+    st.caption("Looks the gene up at NCBI. Only the words you type here are sent; your trace files are not.")
+    by_name, by_accession = st.tabs(["By organism and gene", "By accession"])
+    try:
+        with by_name:
+            with st.form("ncbi_name"):
+                c1, c2 = st.columns([3, 2])
+                organism = c1.text_input("Organism", placeholder="for example Mycobacterium tuberculosis")
+                gene = c2.text_input("Gene", placeholder="for example rpoB")
+                if st.form_submit_button("Search NCBI"):
+                    st.session_state["ncbi_query"] = (organism.strip(), gene.strip())
+            query = st.session_state.get("ncbi_query")
+            if query and all(query):
+                with st.spinner("Searching NCBI…"):
+                    hits = ncbi_search_genes(*query)
+                if hits:
+                    choice = st.selectbox(
+                        f"Found {len(hits)} gene{'s' if len(hits) != 1 else ''}", range(len(hits)),
+                        format_func=lambda i: hits[i].label,
+                    )
+                    if st.button("Use this gene", key="use_hit", type="primary"):
+                        with st.spinner("Downloading the gene from NCBI…"):
+                            _use_downloaded(ncbi.reference_for_hit(hits[choice]))
+                else:
+                    with st.spinner("Searching NCBI sequence records…"):
+                        records = ncbi_search_records(*query)
+                    if not records:
+                        st.warning(
+                            f"NCBI has no gene “{query[1]}” for “{query[0]}”. Check the spelling, try the full "
+                            "species name, or use the accession of a sequence that contains the gene."
+                        )
+                    else:
+                        st.info(
+                            "This gene is not in the organism's reference genome, but these sequence records carry it. "
+                            "Choose one."
+                        )
+                        choice = st.selectbox("Sequence record", range(len(records)), format_func=lambda i: records[i].label)
+                        with st.spinner("Reading the gene list of the record…"):
+                            info = ncbi_record_info(records[choice].accession)
+                        _gene_picker(info, preselect=query[1])
+            elif query:
+                st.warning("Type both an organism and a gene name.")
+        with by_accession:
+            with st.form("ncbi_accession"):
+                accession = st.text_input(
+                    "NCBI accession", placeholder="for example NC_045512.2",
+                    help="The accession of a genome, plasmid or gene record in NCBI Nucleotide (GenBank or RefSeq).",
+                )
+                if st.form_submit_button("Look up"):
+                    st.session_state["ncbi_accession_value"] = accession.strip()
+            accession = st.session_state.get("ncbi_accession_value")
+            if accession:
+                with st.spinner("Reading the record from NCBI…"):
+                    info = ncbi_record_info(accession)
+                _gene_picker(info)
+    except ncbi.NcbiError as ex:
+        st.error(str(ex))
+
+    path = st.session_state.get("ncbi_reference_path")
+    if path and Path(path).is_file():
+        return Reference.from_file(path)
+    return None
+
+
 def choose_reference() -> tuple[Reference | None, bool]:
     """Reference picker; returns the reference and whether it is a custom (uploaded) one."""
     card_title(1, "Reference", "The gene your traces are compared with.")
-    source = st.radio(
-        "Reference source", ["Search the built-in transcripts", "Use my own file"],
-        horizontal=True, label_visibility="collapsed",
-    )
-    custom = source != "Search the built-in transcripts"
+    source = st.radio("Reference source", SOURCES, horizontal=True, label_visibility="collapsed")
+    custom = source == "My own file"
     try:
-        if not custom:
+        if source == "Human genes (built in)":
             directory = default_reference_dir()
             names = bundled_names(str(directory))
             if not names:
-                st.warning(f"No built-in references were found in {directory}. Use your own file instead.")
+                st.warning(f"No built-in references were found in {directory}. Use another source.")
                 return None, False
             query = st.text_input(
                 "Gene name or RefSeq accession", placeholder="Type a gene, for example BRCA2",
-                help=f"{len(names):,} RefSeq transcripts are built in.",
+                help=f"{len(names):,} human RefSeq transcripts are built in.",
             )
             if not query:
                 return None, False
             matches = search(names, query)
             if not matches:
-                st.warning(f"Nothing matches “{query}”. Check the spelling, or use your own reference file.")
+                st.warning(f"Nothing matches “{query}”. Check the spelling, or use another source.")
                 return None, False
             name = st.selectbox(
                 f"Transcript ({len(matches)} match{'es' if len(matches) != 1 else ''})", matches,
                 help="A gene can have several transcripts. Pick the one your laboratory reports against.",
             )
             return Reference.from_file(directory / f"{name}.fasta"), False
+        if source == "Any organism (NCBI)":
+            return ncbi_panel(), False
+        if source == "My saved references":
+            saved = ncbi.list_saved_references()
+            if not saved:
+                st.info("Nothing saved yet. Genes you download under “Any organism (NCBI)” are kept here for offline use.")
+                return None, False
+            name = st.selectbox("Saved reference", saved, help=f"Stored in {ncbi.user_reference_dir()}")
+            return Reference.from_file(ncbi.user_reference_dir() / f"{name}.fasta"), False
         upload = st.file_uploader(
             "FASTA or GenBank file", type=["fasta", "fa", "txt", "gb", "gbk"],
             help="In a FASTA file, write coding regions in UPPER CASE and everything else in lower case.",
@@ -575,7 +688,8 @@ def main() -> None:
     with left, st.container(border=True):
         reference, custom = choose_reference()
         if reference is not None:
-            st.success(f"Using {reference.name.removesuffix('.fasta')} ({len(reference.sequence):,} bases)")
+            detail = f" · {reference.description.split(' | source=')[0]}" if reference.description else ""
+            st.success(f"Using {reference.name.removesuffix('.fasta')} ({len(reference.sequence):,} bases){detail}")
     with right, st.container(border=True):
         card_title(2, "Trace files", "The .ab1 files from the sequencer. One is enough; two confirm each other.")
         c1, c2 = st.columns(2)
@@ -587,7 +701,7 @@ def main() -> None:
         with steps:
             stepper(1 if reference is None else 2)
         if reference is None and not have_traces:
-            st.info("Start by choosing a reference on the left, then add your trace files on the right.")
+            st.info("Start by choosing a reference on the left (human genes are built in; any other organism comes from NCBI), then add your trace files on the right.")
         elif reference is None:
             st.info("Now choose the reference on the left.")
         else:

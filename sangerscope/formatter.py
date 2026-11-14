@@ -277,6 +277,10 @@ class Formatter:
                     if i == cds_end and cds_index < len(starts) - 1:
                         cds_index += 1
                         cds_start, cds_end = starts[cds_index], ends[cds_index]
+                        if cds_start <= i:
+                            # the next part starts at or before this base (ribosomal slippage):
+                            # the bases read twice count twice in the coding numbering
+                            cdna += i - cds_start + 1
                 elif cds_index == 0 and i < cds_start:  # 5' of the first coding region
                     offset = cds_start - i
                     cdna_map[i] = f"c.{self.first_number}-{offset}" if self.first_number > 1 else f"c.-{offset}"
