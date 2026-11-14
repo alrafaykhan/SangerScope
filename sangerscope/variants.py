@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from functools import cmp_to_key
 from typing import TYPE_CHECKING, Iterable, Iterator
 
@@ -20,6 +21,37 @@ TYPE_NAMES = {DELETION: "deletion", DELINS: "delins", INSERTION: "insertion", DU
 
 def _cmp(a, b) -> int:
     return (a > b) - (a < b)
+
+
+def noncoding_consequence(c_index: str) -> str:
+    """Effect type of a position outside the coding sequence, from its c. number."""
+    intron = re.fullmatch(r"c\.\d+([+-])(\d+)", c_index)
+    if intron:
+        distance = int(intron.group(2))
+        if distance <= 2:
+            return "splice site"
+        if distance <= 8:
+            return "splice region"
+        return "intronic"
+    if c_index.startswith("c.*"):
+        return "3' UTR"
+    if c_index.startswith("c.-"):
+        return "5' UTR"
+    return ""
+
+
+def near_exon_junction(reference, g_index: int, distance: int = 3) -> bool:
+    """True for a coding position within `distance` bases of an exon-intron junction."""
+    starts, ends = reference.cdna_start, reference.cdna_end
+    if not starts or len(starts) < 2:
+        return False
+    for i, (start, end) in enumerate(zip(starts, ends)):
+        if start <= g_index <= end:
+            # edges that touch another coding part directly (ribosomal slippage) are not junctions
+            at_donor = i < len(starts) - 1 and starts[i + 1] > end + 1 and end - g_index < distance
+            at_acceptor = i > 0 and start > ends[i - 1] + 1 and g_index - start < distance
+            return at_donor or at_acceptor
+    return False
 
 
 class Variant:
@@ -42,6 +74,12 @@ class Variant:
         self.on_target = False
         self.zygosity = ""
         self.combined_expression = ""
+        #: effect type in words, e.g. "missense", "frameshift", "splice site"
+        self.consequence = ""
+        # filled in by sangerscope.annotate.annotate
+        self.genomic = ""
+        self.clinvar_url = ""
+        self.variant_fraction: float | None = None
         # filled in by sangerscope.quality.assess
         self.quality = "good"
         self.quality_notes: list[str] = []
@@ -104,6 +142,9 @@ class Variant:
             "on_target": self.on_target,
             "reference_position": self.g_index,
             "equivalent_expressions": self.equivalent_expressions.strip().rstrip(";").rstrip(", "),
+            "consequence": self.consequence,
+            "variant_fraction": "" if self.variant_fraction is None else round(self.variant_fraction * 100),
+            "genomic": self.genomic,
             "quality": self.quality,
             "quality_notes": "; ".join(self.quality_notes),
             "forward_phred": "" if self.fwd_phred is None else self.fwd_phred,
@@ -145,6 +186,10 @@ class SNV(Variant):
         self.hgvs = f"{c_index}{ref_char}>{self.alt_char}"
         if coding:
             self._make_aa_change(ctx)
+        if not self.consequence:
+            self.consequence = noncoding_consequence(c_index)
+        elif near_exon_junction(ctx.reference, g_index):
+            self.consequence += ", splice region"
 
     @property
     def alt_char(self) -> str:
@@ -164,9 +209,27 @@ class SNV(Variant):
         codon_number = (c_number - 1) // 3 + 1
         aa = ctx.reference.aa
         try:
-            self.aa_change = f"p.({aa(original)}{codon_number}{aa(mutated)})"
+            before, after = aa(original), aa(mutated)
         except UntranslatableError:
             self.aa_change = "(untranslatable)"
+            self.consequence = "coding"
+            return
+        if before == after:
+            self.aa_change = f"p.({before}{codon_number}=)"
+            self.consequence = "synonymous"
+        elif codon_number == 1:
+            # a changed start codon: the effect on the protein cannot be predicted
+            self.aa_change = "p.(Met1?)"
+            self.consequence = "start lost"
+        elif after == "*":
+            self.aa_change = f"p.({before}{codon_number}*)"
+            self.consequence = "nonsense"
+        elif before == "*":
+            self.aa_change = f"p.(*{codon_number}{after}ext*?)"
+            self.consequence = "stop lost"
+        else:
+            self.aa_change = f"p.({before}{codon_number}{after})"
+            self.consequence = "missense"
 
 
 class EquivExpression:
@@ -247,6 +310,14 @@ class Indel(Variant):
 
         if self.coding1 and self.coding2 and ctx.formatter.first_number == 1:
             self._make_aa_change(ctx)
+        if not self.consequence:
+            effects = [noncoding_consequence(self.c_index), noncoding_consequence(self.c_index2)]
+            if self.coding1 != self.coding2 or "splice site" in effects:
+                self.consequence = "splice site"
+            elif self.coding1 and self.coding2:
+                self.consequence = "coding"
+            else:
+                self.consequence = next((e for e in effects if e), "")
 
         # HGVS recommends the most 3' position
         right_most = None
@@ -386,6 +457,7 @@ class Indel(Variant):
             # a stop codon as the first changed amino acid is a nonsense change, not a frameshift
             if shifted_aa == "*":
                 self.aa_change = f"p.({original_aa}{i // 3 + 1}{shifted_aa})"
+                self.consequence = "nonsense"
                 return
             if original_aa != shifted_aa:
                 prefix = f"p.({original_aa}{i // 3 + 1}{shifted_aa}fs"
@@ -405,14 +477,21 @@ class Indel(Variant):
                 i += 3
         except IndexError:
             pass
-        self.aa_change = f"{prefix}*{count})" if terminal_found else f"{prefix})"
+        self.consequence = "frameshift"
+        if not prefix:
+            self.aa_change = ""
+        else:
+            self.aa_change = f"{prefix}*{count})" if terminal_found else f"{prefix}*?)"
 
     def _in_frame(self, original: str, shifted: str) -> None:
         original_aa = [self._aa(original[i : i + 3]) for i in range(0, len(original) - 2, 3)]
         shifted_aa = [self._aa(shifted[i : i + 3]) for i in range(0, len(shifted) - 2, 3)]
         if original_aa == shifted_aa:
-            self.aa_change = "no amino acid change"
+            self.aa_change = "p.(=)"
+            self.consequence = "synonymous"
             return
+        self.consequence = {DELETION: "in-frame deletion", INSERTION: "in-frame insertion",
+                            DUPLICATION: "in-frame duplication", DELINS: "in-frame delins"}[self.type]
 
         left = 1
         while left <= len(original_aa) and left <= len(shifted_aa):
@@ -450,6 +529,10 @@ class Indel(Variant):
                 if left < len(original_aa):
                     text += f"_{jget(original_aa, left)}{left + 1}"
                 text += "ins" + "".join(jget(shifted_aa, i - 1) for i in range(left + 1, shifted_right + 1)) + ")"
+        elif left + 1 == original_right == shifted_right:  # one amino acid replaced by another
+            new_aa = jget(shifted_aa, left)
+            text = f"p.({jget(original_aa, left)}{left + 1}{new_aa})"
+            self.consequence = "nonsense" if new_aa == "*" else "missense"
         else:  # delins
             text = f"p.({jget(original_aa, left)}{left + 1}"
             if left + 1 != original_right:

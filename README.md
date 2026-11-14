@@ -1,6 +1,6 @@
 <img src="sangerscope/assets/icon.png" width="96" align="right">
 
-SangerScope Ver 3.0.0
+SangerScope Ver 3.1.0
 ======================
 SangerScope is a free software for Sanger sequencing analysis in clinical environment.<br>
 It supports automatic detection of variants including SNVs and indel variants (homozygous and heterozygous).<br>
@@ -11,7 +11,7 @@ It runs in the browser and from the command line.
 <img src="fig/fig_web_interface.png">
 
 # 1. How to Run
-**Windows:** download `SangerScope-3.0.0-Setup.exe` from the [Releases](https://github.com/alrafaykhan/SangerScope/releases) page and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
+**Windows:** download `SangerScope-3.1.0-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
 The installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC": choose "More info", then "Run anyway".
 
 **Any system, from the source code:** you need [Python](https://www.python.org) 3.10 or higher.
@@ -24,6 +24,7 @@ sangerscope app
 ```
 
 `sangerscope app` starts the browser interface on your own computer (http://localhost:8501). Trace files are not sent anywhere else.<br>
+On start, SangerScope asks GitHub once whether a newer version exists and shows a notice if so; set `SANGERSCOPE_NO_UPDATE_CHECK=1` to switch this off.<br>
 The bundled reference transcripts are read from the `reference` folder of the repository; set `SANGERSCOPE_REFERENCE_DIR` to use another folder.
 
 # 2. How to Use
@@ -39,17 +40,26 @@ Since bases with double peaks have low phred scores, the initial suggestion is t
 In cases with heterozygous indel variants, adjust the "Bases to use" slider in order to include the maximal number of valid bases (including double peaks) and the minimal number of noise signals.<br>
 4. Click 'Find variants'.<br>
 5. The variant table is shown. Select a row to see the variant in the traces. The "Alignment" tab shows the aligned sequences, and the "Heterozygous indel" tab shows the two alleles separated from the double peaks.<br>
-6. Every variant has a signal quality rating: Good (clean signal), Check (look at the trace before reporting) or Poor (do not report without repeating the sequencing or confirming on the other strand). The rating uses the base quality values at and around the variant, double peaks in the surrounding bases, the size of the second peak for heterozygous calls, and whether the other trace shows the variant. A warning is shown when a whole trace is of poor quality. The rating is a guide, not a validated cut-off, and it does not change which variants are called.<br>
-7. The "Download" tab gives a printable report (HTML) and the variant table (TSV, JSON).
+6. For every variant SangerScope gives:<br>
+&nbsp;&nbsp;- the name in HGVS nomenclature and the **protein effect**, for example `p.(Ser450Leu)`, `p.(Phe924=)` for a silent change, `p.(Met1?)` for a changed start codon, `p.(Arg97Profs*23)` for a frameshift;<br>
+&nbsp;&nbsp;- the **effect type**: missense, synonymous, nonsense, frameshift, in-frame deletion/insertion, start lost, stop lost, splice site (first two intron bases), splice region, intronic, 5' UTR or 3' UTR;<br>
+&nbsp;&nbsp;- for heterozygous SNVs, a rough estimate of the **proportion of the signal** that carries the variant, from the peak heights;<br>
+&nbsp;&nbsp;- for genes downloaded from NCBI, the **position on the genome** record; for human transcripts, a link that searches the variant in **ClinVar**.<br>
+7. Every variant has a **signal quality** rating: Good (clean signal), Check (look at the trace before reporting) or Poor (do not report without repeating the sequencing or confirming on the other strand). The rating uses the base quality values at and around the variant, double peaks in the surrounding bases, the size of the second peak for heterozygous calls, and whether the other trace shows the variant. Variants rated Poor are hidden until you switch them on, and a warning is shown when a whole trace is of poor quality. The rating is a guide, not a validated cut-off, and it does not change which variants are called.<br>
+8. The "Download" tab gives a printable report (PDF) with your sample ID and name, and the variant table (TSV, JSON).
+
+**Many samples (batch):** choose "Many samples (batch)" at the top, pick one reference and add the trace files of all samples at once. Forward and reverse files are paired by their names (`sample_F.ab1` / `sample_R.ab1`, also `Fwd` / `Rev`, `Forward` / `Reverse`; a plate well after the direction is ignored). Check the pairing table, run, and download one table with all variants and a zip with one PDF report per sample. In batch mode the suggested trimming is applied without review, so heterozygous indels whose double peaks are trimmed away are not detected; samples marked "trimming needs review" should be opened as one sample.
+
+For human genes, ★ marks the **MANE Select** transcript, the one recommended for clinical reporting (MANE v1.5). The built-in transcripts date from 2021; where the current MANE Select version is newer, the current version number is shown.
 
 # 3. Command Line
 One sample:
 
 ```bash
-sangerscope run --ref "NM_000059.3(BRCA2)" --fwd sample_F.ab1 --rev sample_R.ab1 --report sample.html
+sangerscope run --ref BRCA2 --fwd sample_F.ab1 --rev sample_R.ab1 --report sample.pdf
 ```
 
-`--ref` takes a FASTA/GenBank file, a bundled transcript name, or a gene symbol that has a single bundled transcript. A reference for another organism is downloaded once with `sangerscope fetch` and then used by name:
+`--ref` takes a FASTA/GenBank file, a built-in transcript name such as `NM_000059.3(BRCA2)`, or a gene symbol (its MANE Select transcript is used). A reference for another organism is downloaded once with `sangerscope fetch` and then used by name:
 
 ```bash
 sangerscope fetch --organism "Mycobacterium tuberculosis" --gene rpoB
@@ -64,7 +74,7 @@ Many samples, listed in a CSV or TSV manifest with the columns `sample`, `refere
 sangerscope batch manifest.csv --out results.tsv --report-dir reports
 ```
 
-In batch mode the suggested trimming is applied without review, so heterozygous indels whose double peaks are trimmed away are not detected; check such samples in the browser interface.
+The same batch analysis is available in the browser interface.
 
 # 4. Parameter optimization
 Generally SangerScope works fine with default parameters.<br>
@@ -88,7 +98,7 @@ Simulated traces are cleaner than real ones. Before clinical use, validate Sange
 Run the tests with `pip install -e ".[test]"` and `pytest`.
 
 # 6. Utilized Libraries
-NumPy, Biopython (GenBank files), Streamlit and Plotly (browser interface)<br>
+NumPy, Biopython (GenBank files), Streamlit and Plotly (browser interface), fpdf2 (PDF report)<br>
 
 # 7. License and Acknowledgement
 SangerScope is distributed under the Apache License, Version 2.0 (see LICENSE and NOTICE).<br>
@@ -96,10 +106,21 @@ The analysis method and the bundled reference sequences are derived from SnackVa
 Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An Open-Source Software for Sanger Sequencing Analysis Optimized for Clinical Use. J. Mol. Diagn. 2021;23:140-8. <br>
 
 # 8. Updates
+**Ver. 3.1.0**<br>
+Protein effect written to HGVS recommendations (silent, start codon, stop codon and frameshift changes) <br>
+Effect type for every variant, including splice site and splice region <br>
+Proportion of the signal carrying a heterozygous variant <br>
+Variants with poor signal quality hidden by default <br>
+Batch mode in the browser interface, with pairing of forward and reverse files by name <br>
+PDF report with sample ID and analyst <br>
+MANE Select transcript marked and used when a gene symbol is given <br>
+Genome position for genes downloaded from NCBI; ClinVar search link for human transcripts <br>
+Notice when a newer version is available <br>
+Windows installer: reference sequences packed into one archive (faster installation) <br><br>
 **Ver. 3.0.0**<br>
+Browser interface, command line tool and batch mode <br>
 References for any organism from NCBI, by organism and gene name or by accession <br>
 Signal quality rating for every variant and a warning for poor traces <br>
-Browser interface, command line tool and batch mode <br>
 Variant table export (TSV, CSV, JSON) and HTML report <br>
 Amino acid change corrected for SNVs in codons interrupted by an intron <br>
 Amino acid change no longer reported for SNVs in the 3' UTR <br>

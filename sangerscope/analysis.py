@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .alignment import AlignedPair, Aligner
+from .annotate import annotate
 from .caller import VariantCaller
 from .formatter import AlignedPoint, Formatter, NoContigError
 from .hetero import HeteroTrace
@@ -173,6 +174,7 @@ class Analysis:
             settings=self.settings,
         )
         assess(result)
+        annotate(result)
         return result
 
     def _reset(self) -> None:

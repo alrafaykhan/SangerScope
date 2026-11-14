@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import __version__
 from .analysis import AnalysisError, Settings, analyze
-from .export import COLUMNS, to_delimited, to_html_report, to_json, variant_rows
+from .export import COLUMNS, to_delimited, to_html_report, to_json, to_pdf_report, variant_rows
 from .reference import ReferenceError
 from .refs import resolve
 
@@ -29,7 +29,7 @@ def _add_settings(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--gap-open-penalty", type=int, default=30, help="gap opening penalty (default 30; raised automatically when needed)")
     parser.add_argument("--delins-cutoff", type=int, default=5, help="consecutive matches that end a delins variant (default 5, range 1-10)")
     parser.add_argument("--first-number", type=int, default=1, help="coding DNA number of the first coding base of a custom reference (default 1)")
-    parser.add_argument("--reference-dir", type=Path, default=None, help="folder with the bundled references (default ./reference)")
+    parser.add_argument("--reference-dir", type=Path, default=None, help="folder or references.zip with the built-in references (default ./reference)")
 
 
 def _read(path: str | None) -> bytes | None:
@@ -67,7 +67,10 @@ def cmd_run(args) -> int:
     else:
         sys.stdout.write(text if text.endswith("\n") else text + "\n")
     if args.report:
-        Path(args.report).write_text(to_html_report(result, fwd_name, rev_name))
+        if args.report.lower().endswith(".pdf"):
+            Path(args.report).write_bytes(to_pdf_report(result, fwd_name, rev_name))
+        else:
+            Path(args.report).write_text(to_html_report(result, fwd_name, rev_name))
     return 0
 
 
@@ -121,8 +124,8 @@ def cmd_batch(args) -> int:
                 writer.writerow({"sample": sample, "status": status, **v})
             if args.report_dir:
                 Path(args.report_dir).mkdir(parents=True, exist_ok=True)
-                (Path(args.report_dir) / f"{sample}.html").write_text(
-                    to_html_report(result, Path(fwd).name if fwd else "", Path(rev).name if rev else "", sample)
+                (Path(args.report_dir) / f"{sample}.pdf").write_bytes(
+                    to_pdf_report(result, Path(fwd).name if fwd else "", Path(rev).name if rev else "", sample)
                 )
             print(f"{sample}: {len(variants)} variant(s)", file=sys.stderr)
     print(f"{len(rows) - failures} of {len(rows)} samples analysed; results in {args.out}", file=sys.stderr)
@@ -247,14 +250,14 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--transcript", type=int, help="transcript number for a GenBank reference with several")
     run.add_argument("--format", choices=["tsv", "csv", "json"], default="tsv")
     run.add_argument("--out", help="write the variant table to this file instead of standard output")
-    run.add_argument("--report", help="also write an HTML report to this file")
+    run.add_argument("--report", help="also write a report to this file (.pdf or .html)")
     _add_settings(run)
     run.set_defaults(func=cmd_run)
 
     batch = sub.add_parser("batch", help="analyse the samples listed in a manifest (CSV/TSV with columns: sample, reference, forward, reverse)")
     batch.add_argument("manifest")
     batch.add_argument("--out", required=True, help="output table (.tsv or .csv)")
-    batch.add_argument("--report-dir", help="also write one HTML report per sample into this folder")
+    batch.add_argument("--report-dir", help="also write one PDF report per sample into this folder")
     _add_settings(batch)
     batch.set_defaults(func=cmd_batch)
 

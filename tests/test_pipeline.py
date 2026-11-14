@@ -55,7 +55,12 @@ def protein(coding, c_number, alt):
         letter = str(Seq(triplet).translate())
         return "*" if letter == "*" else seq3(letter)
 
-    return f"p.({aa(codon)}{codon_index + 1}{aa(mutated)})"
+    before, after = aa(codon), aa(mutated)
+    if before == after:
+        return f"p.({before}{codon_index + 1}=)"
+    if before == "*":
+        return f"p.(*{codon_index + 1}{after}ext*?)"
+    return f"p.({before}{codon_index + 1}{after})"
 
 
 def coding_sequence(synthetic):

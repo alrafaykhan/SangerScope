@@ -8,6 +8,7 @@ on:
     branches: [master]
     paths:
       - "sangerscope/**"
+      - "reference/**"
       - "packaging/windows/**"
       - "pyproject.toml"
       - ".github/workflows/windows-installer.yml"
@@ -35,7 +36,7 @@ jobs:
           $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=C:\SangerScopeTest" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
           if (-not (Test-Path C:\SangerScopeTest\python\python.exe)) { throw "Python runtime missing" }
-          (Get-ChildItem C:\SangerScopeTest\reference).Count
+          if (-not (Test-Path C:\SangerScopeTest\references.zip)) { throw "reference archive missing" }
 
       - name: Analyse a simulated sample with the installed application
         shell: pwsh
@@ -49,7 +50,11 @@ jobs:
           Get-Content C:\smoke\out.tsv
           $expected = Get-Content C:\smoke\expected.txt
           if (-not (Select-String -Path C:\smoke\out.tsv -SimpleMatch $expected)) { throw "expected variant $expected not found" }
-          & $py -m sangerscope run --ref "NM_000546.5(TP53)" --fwd C:\smoke\s_F.ab1 2>&1 | Select-Object -First 3
+          # the built-in references are read from the archive: a gene symbol resolves to its MANE Select transcript
+          & $py -c "from sangerscope import refs; r = refs.resolve('TP53'); print(r.name, len(r.sequence)); assert len(refs.list_bundled(refs.default_reference_dir())) > 50000"
+          if ($LASTEXITCODE -ne 0) { throw "built-in references are not readable" }
+          & $py -m sangerscope run --ref C:\smoke\ref.fasta --fwd C:\smoke\s_F.ab1 --rev C:\smoke\s_R.ab1 --out C:\smoke\out2.tsv --report C:\smoke\report.pdf
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path C:\smoke\report.pdf)) { throw "PDF report failed" }
 
       - name: Download a reference from NCBI with the installed application
         continue-on-error: true

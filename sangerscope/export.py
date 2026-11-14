@@ -15,6 +15,7 @@ from .symbols import GAP
 COLUMNS = [
     "variant", "protein", "zygosity", "type", "detected_in", "hit_count",
     "on_target", "reference_position", "equivalent_expressions",
+    "consequence", "variant_fraction", "genomic",
     "quality", "quality_notes", "forward_phred", "reverse_phred",
 ]
 
@@ -156,13 +157,13 @@ def to_html_report(result: Result, fwd_name: str = "", rev_name: str = "", sampl
         rows.append(
             "<tr><td><b>{}</b><br>{}</td><td>{}</td><td>{}</td><td>{}</td><td><span class='q {}'>{}</span></td><td>{}</td></tr>"
             "<tr class='snip'><td colspan='6'>{}{}</td></tr>".format(
-                e(d["variant"]), e(d["protein"]), e(d["zygosity"]), e(str(d["type"])), e(d["detected_in"]),
+                e(d["variant"]), e(d["protein"]), e(d["zygosity"]), e(v.consequence or str(d["type"])), e(d["detected_in"]),
                 e(v.quality), e(QUALITY_LABELS[v.quality]), e(d["equivalent_expressions"]),
                 "".join(f"<div class='qn'>{e(n)}</div>" for n in v.quality_notes), "".join(snippets),
             )
         )
     table = (
-        "<table><thead><tr><th>Variant</th><th>Zygosity</th><th>Type</th><th>Detected in</th>"
+        "<table><thead><tr><th>Variant</th><th>Zygosity</th><th>Effect type</th><th>Detected in</th>"
         "<th>Signal quality</th><th>Equivalent expressions</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
         if rows
         else "<p>No variant detected.</p>"
@@ -219,3 +220,150 @@ base quality values and neighbouring double peaks, not a validated cut-off.</p>
 <p class="note">Results require interpretation by an expert in the field. Marks under the alignment:
 * difference from the reference, + agreement with low base quality.</p>
 </body></html>"""
+
+
+# ----------------------------------------------------------------------------- PDF report
+
+_PDF_COLOURS = {"A": (26, 143, 60), "C": (31, 95, 208), "G": (34, 34, 34), "T": (210, 43, 43)}
+_QUALITY_FILL = {"good": (223, 243, 228), "check": (253, 240, 213), "poor": (253, 224, 224)}
+_ZYGOSITY = {"hetero": "Heterozygous", "homo": "Homozygous"}
+
+
+def _latin(text) -> str:
+    """Text restricted to what the built-in PDF fonts can show."""
+    text = str(text)
+    for a, b in (("\u2013", "-"), ("\u2014", "-"), ("\u00b7", "-"), ("\u2605", "*"), ("\u2026", "..."),
+                 ("\u201c", '"'), ("\u201d", '"'), ("\u2018", "'"), ("\u2019", "'"), ("\u2212", "-")):
+        text = text.replace(a, b)
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def _pdf_trace(pdf, trace, centre_base: int, x: float, y: float, width: float, height: float, flank: int = 12) -> None:
+    n = trace.sequence_length
+    first, last = max(1, centre_base - flank), min(n, centre_base + flank)
+    x0 = max(0, trace.base_calls[first - 1] - 6)
+    x1 = min(trace.trace_length - 1, trace.base_calls[last - 1] + 6)
+    if x1 <= x0:
+        return
+    plot_h = height - 4
+    top = max(1, max(max(trace.channel(b)[x0 : x1 + 1]) for b in "ACGT"))
+    scale = width / (x1 - x0)
+    cx = x + (trace.base_calls[min(n, max(1, centre_base)) - 1] - x0) * scale
+    pdf.set_fill_color(255, 233, 168)
+    pdf.rect(cx - 1.5, y, 3, height, style="F")
+    pdf.set_line_width(0.2)
+    for base in "ACGT":
+        channel = trace.channel(base)
+        pdf.set_draw_color(*_PDF_COLOURS[base])
+        points = [(x + (i - x0) * scale, y + plot_h - max(0, channel[i]) / top * (plot_h - 1)) for i in range(x0, x1 + 1)]
+        pdf.polyline(points)
+    pdf.set_font("Courier", "B", 7)
+    for i in range(first, last + 1):
+        ch = trace.sequence[i - 1]
+        pdf.set_text_color(*_PDF_COLOURS.get(ch, (176, 23, 143)))
+        pdf.text(x + (trace.base_calls[i - 1] - x0) * scale - 0.7, y + height, ch)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_draw_color(0, 0, 0)
+
+
+def to_pdf_report(result: Result, fwd_name: str = "", rev_name: str = "", sample: str = "", analyst: str = "",
+                  variants: list | None = None) -> bytes:
+    """Printable PDF report. `variants` limits the report to a selection (default: all)."""
+    from fpdf import FPDF
+
+    shown = result.variants if variants is None else variants
+    hidden = len(result.variants) - len(shown)
+    info = run_info(result, fwd_name, rev_name)
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(True, margin=14)
+    pdf.set_margins(15, 14, 15)
+    pdf.add_page()
+    width = pdf.w - 30
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 9, "SangerScope report", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    details = [
+        ("Sample", sample), ("Analyst", analyst), ("Reference", info["reference"]),
+        ("Reference details", result.reference.description.split(" | source=")[0]),
+        ("Forward trace", info["forward_trace"] or "-"), ("Reverse trace", info["reverse_trace"] or "-"),
+        ("Double peak cutoff", info["second_peak_cutoff"]), ("Gap opening penalty used", info["gap_open_penalty_used"]),
+        ("Software", info["software"]), ("Date", info["date"]),
+    ]
+    for label, value in details:
+        if value in ("", None):
+            continue
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(48, 5, _latin(label))
+        pdf.set_font("Helvetica", "", 9)
+        pdf.multi_cell(width - 48, 5, _latin(value), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    notes = list(result.messages)
+    notes += [f"{q.label}: {QUALITY_LABELS[q.level].lower()} sequence quality ({'; '.join(q.notes)})."
+              for q in result.trace_quality if q.level != "good"]
+    if hidden:
+        notes.append(f"{hidden} variant(s) with poor signal quality were found but are not listed in this report.")
+    for note in notes:
+        pdf.set_fill_color(255, 246, 214)
+        pdf.multi_cell(width, 5, _latin(note.replace("\n", " ")), fill=True, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, f"Variants ({len(shown)})", new_x="LMARGIN", new_y="NEXT")
+    if not shown:
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(0, 6, "No variant detected.", new_x="LMARGIN", new_y="NEXT")
+    for v in shown:
+        if pdf.get_y() > pdf.h - 75:
+            pdf.add_page()
+        pdf.set_fill_color(*_QUALITY_FILL[v.quality])
+        pdf.set_font("Courier", "B", 11)
+        pdf.cell(width - 32, 7, _latin(f"{v.hgvs}   {v.protein}"), fill=True)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(32, 7, _latin(f"Quality: {QUALITY_LABELS[v.quality]}"), fill=True, align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 9)
+        facts = [_ZYGOSITY.get(v.zygosity, v.zygosity), v.consequence, "found in " + v.detected_in.lower()]
+        if v.variant_fraction is not None and v.zygosity == "hetero":
+            facts.append(f"variant signal about {v.variant_fraction:.0%}")
+        if v.genomic:
+            facts.append(v.genomic)
+        pdf.multi_cell(width, 5, _latin(" - ".join(f for f in facts if f)), new_x="LMARGIN", new_y="NEXT")
+        also = v.to_dict()["equivalent_expressions"]
+        if also:
+            pdf.multi_cell(width, 5, _latin("Can also be written as: " + also), new_x="LMARGIN", new_y="NEXT")
+        for note in v.quality_notes:
+            pdf.set_text_color(122, 75, 0)
+            pdf.multi_cell(width, 4.5, _latin("- " + note), new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(0, 0, 0)
+        for label, trace, index, char in (
+            ("Forward", result.fwd_trace, v.fwd_trace_index, v.fwd_trace_char),
+            ("Reverse", result.rev_trace, v.rev_trace_index, v.rev_trace_char),
+        ):
+            if trace is None or char in ("", GAP) or not (1 <= index <= trace.sequence_length):
+                continue
+            if pdf.get_y() > pdf.h - 45:
+                pdf.add_page()
+            pdf.set_font("Helvetica", "", 7)
+            pdf.cell(0, 4, label, new_x="LMARGIN", new_y="NEXT")
+            _pdf_trace(pdf, trace, index, 15, pdf.get_y(), width, 24)
+            pdf.set_y(pdf.get_y() + 27)
+        pdf.ln(2)
+
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Alignment", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Courier", "", 7.5)
+    for line in alignment_text(result, 100).splitlines():
+        pdf.cell(0, 3.4, _latin(line), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "", 7.5)
+    pdf.multi_cell(
+        width, 3.8,
+        "Signal quality: Good = clean signal; Check = look at the trace before reporting; Poor = do not report without "
+        "repeating the sequencing or confirming on the other strand. The rating is a guide, not a validated cut-off. "
+        "Marks under the alignment: * difference from the reference, + agreement with low base quality. "
+        "Results require interpretation by an expert in the field.",
+        new_x="LMARGIN", new_y="NEXT",
+    )
+    return bytes(pdf.output())

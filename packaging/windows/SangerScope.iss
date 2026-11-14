@@ -36,7 +36,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"
 Source: "{#StageDir}\python\*"; DestDir: "{app}\python"; Flags: recursesubdirs ignoreversion
 Source: "{#StageDir}\SangerScope.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\packaging\windows\SangerScope.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#RepoRoot}\reference\*"; DestDir: "{app}\reference"; Flags: ignoreversion
+Source: "{#StageDir}\references.zip"; DestDir: "{app}"; Flags: ignoreversion nocompression
 Source: "{#RepoRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\Terms_of_use.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -49,6 +49,11 @@ Name: "{userdesktop}\SangerScope"; Filename: "{app}\SangerScope.bat"; WorkingDir
 
 [Run]
 Filename: "{app}\SangerScope.bat"; Description: "Start SangerScope now"; Flags: postinstall nowait skipifsilent
+
+[InstallDelete]
+; earlier versions installed the references as 53,000 separate files
+Type: filesandordirs; Name: "{app}\reference"
+Type: filesandordirs; Name: "{app}\python\Lib\site-packages\sangerscope"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"

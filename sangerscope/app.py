@@ -26,9 +26,10 @@ from sangerscope.analysis import (
     load_trace,
 )
 from sangerscope import ncbi
-from sangerscope.export import alignment_blocks, to_delimited, to_html_report, to_json
-from sangerscope.reference import Reference, ReferenceError, list_bundled_references
-from sangerscope.refs import default_reference_dir, search
+from sangerscope.export import COLUMNS, alignment_blocks, to_delimited, to_html_report, to_json, to_pdf_report
+from sangerscope.pairing import pair_files
+from sangerscope.reference import Reference, ReferenceError
+from sangerscope.refs import default_reference_dir, display_name, list_bundled, load_bundled, search
 from sangerscope.symbols import GAP
 from sangerscope.trace import TRACE_WIDTH, Trace
 from sangerscope.variants import Indel
@@ -56,7 +57,30 @@ st.set_page_config(
 
 @st.cache_data(show_spinner=False)
 def bundled_names(directory: str) -> list[str]:
-    return list_bundled_references(directory)
+    return list_bundled(directory)
+
+
+@st.cache_data(show_spinner=False, ttl=6 * 3600)
+def latest_release() -> str:
+    """Version of the newest published release, or "" when it cannot be checked."""
+    import json
+    import os
+    import urllib.request
+
+    if os.environ.get("SANGERSCOPE_NO_UPDATE_CHECK"):
+        return ""
+    try:
+        request = urllib.request.Request(
+            "https://api.github.com/repos/alrafaykhan/SangerScope/releases/latest", headers={"User-Agent": "sangerscope"}
+        )
+        with urllib.request.urlopen(request, timeout=3) as response:
+            return str(json.load(response).get("tag_name", "")).lstrip("v")
+    except Exception:
+        return ""
+
+
+def _version_tuple(text: str) -> tuple:
+    return tuple(int(x) for x in text.split(".") if x.isdigit())
 
 
 @st.cache_data(show_spinner=False)
@@ -242,9 +266,9 @@ def hero() -> None:
     )
 
 
-def stepper(current: int) -> None:
+def stepper(current: int, labels: list[str] | None = None) -> None:
     """Progress strip; `current` is the step the user is on (1-4)."""
-    labels = ["Choose the reference", "Add trace files", "Check trimming and run", "Review the variants"]
+    labels = labels or ["Choose the reference", "Add trace files", "Check trimming and run", "Review the variants"]
     parts = []
     for i, label in enumerate(labels, 1):
         cls = "done" if i < current else ("now" if i == current else "")
@@ -391,10 +415,11 @@ def choose_reference() -> tuple[Reference | None, bool]:
                 st.warning(f"Nothing matches “{query}”. Check the spelling, or use another source.")
                 return None, False
             name = st.selectbox(
-                f"Transcript ({len(matches)} match{'es' if len(matches) != 1 else ''})", matches,
-                help="A gene can have several transcripts. Pick the one your laboratory reports against.",
+                f"Transcript ({len(matches)} match{'es' if len(matches) != 1 else ''})", matches, format_func=display_name,
+                help="A gene can have several transcripts. ★ marks the MANE Select transcript, the one "
+                "recommended for clinical reporting. Pick the one your laboratory reports against.",
             )
-            return Reference.from_file(directory / f"{name}.fasta"), False
+            return load_bundled(directory, name), False
         if source == "Any organism (NCBI)":
             return ncbi_panel(), False
         if source == "My saved references":
@@ -539,15 +564,31 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
     tabs = dict(zip(names, st.tabs(names)))
 
     selected = None
+    poor = [v for v in variants if v.quality == "poor"]
+    shown = variants
     with tabs["Variants"]:
         if not variants:
             st.success("No variant was found: the traces match the reference over the region they cover.")
         else:
+            if poor:
+                show_poor = st.toggle(
+                    f"Show the {len(poor)} variant{'s' if len(poor) != 1 else ''} with poor signal quality",
+                    value=False, key="show_poor",
+                    help="Calls from noisy stretches are usually artefacts, so they are hidden until you ask for them.",
+                )
+                if not show_poor:
+                    shown = [v for v in variants if v.quality != "poor"]
+        st.session_state["shown_variants"] = shown
+        if variants and not shown:
+            st.warning("Every variant found has poor signal quality. Turn the switch on to see them.")
+        elif shown:
+            variants = shown
             table = pd.DataFrame(
                 [
                     {
                         "Variant": v.hgvs,
                         "Protein effect": v.protein,
+                        "Effect type": v.consequence,
                         "Zygosity": ZYGOSITY.get(v.zygosity, v.zygosity),
                         "Signal quality": QUALITY[v.quality],
                         "Found in": FOUND_IN.get(v.detected_in, v.detected_in),
@@ -605,24 +646,45 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
 
     with tabs["Download"]:
         stem = Path(fwd_name or rev_name or "sangerscope").stem
+        c1, c2 = st.columns(2)
+        sample = c1.text_input("Sample ID (printed on the report)", key="sample_id")
+        analyst = c2.text_input("Analyst (printed on the report)", key="analyst")
+        listed = st.session_state.get("shown_variants", result.variants)
+        if len(listed) != len(result.variants):
+            st.caption(
+                f"The report lists the {len(listed)} variant(s) shown in the Variants tab and mentions that "
+                f"{len(result.variants) - len(listed)} with poor signal quality were left out. The table and data files contain all of them."
+            )
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown("**Report**  \nA page to print or file, with the variants, trace pictures and the alignment.")
-            st.download_button("Download report (HTML)", to_html_report(result, fwd_name, rev_name), f"{stem}_report.html", "text/html", type="primary")
+            st.download_button(
+                "Download report (PDF)", to_pdf_report(result, fwd_name, rev_name, sample, analyst, listed),
+                f"{sample or stem}_report.pdf", "application/pdf", type="primary",
+            )
         with c2:
             st.markdown("**Table**  \nThe variant list for Excel or a laboratory information system.")
-            st.download_button("Download table (TSV)", to_delimited(result), f"{stem}_variants.tsv", "text/tab-separated-values")
+            st.download_button(
+                "Download table (TSV)", to_delimited(result, extra={"sample": sample} if sample else None),
+                f"{sample or stem}_variants.tsv", "text/tab-separated-values",
+            )
         with c3:
             st.markdown("**Data**  \nThe variants and the run settings, for other software.")
-            st.download_button("Download data (JSON)", to_json(result, fwd_name, rev_name), f"{stem}_variants.json", "application/json")
+            st.download_button("Download data (JSON)", to_json(result, fwd_name, rev_name), f"{sample or stem}_variants.json", "application/json")
 
 
 def show_variant(result: Result, variant) -> None:
     also = variant.to_dict()["equivalent_expressions"]
     st.markdown(
         f'<div class="ss-variant"><div class="name">{variant.hgvs}</div>'
-        f'<div class="sub">Protein effect: <b>{variant.protein}</b></div>'
-        f'<div class="sub" style="margin-top:8px">{variant_chips(variant)}</div>'
+        f'<div class="sub">Protein effect: <b>{variant.protein}</b>'
+        + (f" · {variant.consequence}" if variant.consequence else "") + "</div>"
+        + (f'<div class="sub">Genome position: {variant.genomic}</div>' if variant.genomic else "")
+        + (f'<div class="sub">About {variant.variant_fraction:.0%} of the signal at this base carries the variant '
+           "(rough estimate from peak heights)</div>" if variant.variant_fraction is not None and variant.zygosity == "hetero" else "")
+        + (f'<div class="sub"><a href="{variant.clinvar_url}" target="_blank">Search for this variant in ClinVar ↗</a></div>'
+           if variant.clinvar_url else "")
+        + f'<div class="sub" style="margin-top:8px">{variant_chips(variant)}</div>'
         + (f'<div class="sub" style="margin-top:8px">Can also be written as: {also}</div>' if also else "")
         + "</div>",
         unsafe_allow_html=True,
@@ -668,11 +730,163 @@ def show_variant(result: Result, variant) -> None:
 # ----------------------------------------------------------------------------- page
 
 
+BATCH_STEPS = ["Choose the reference", "Add all trace files", "Check the pairing and run", "Review the results"]
+
+
+def batch_page() -> None:
+    """Many samples against one reference, forward and reverse files paired by file name."""
+    import io
+    import zipfile
+
+    from sangerscope.analysis import analyze
+
+    steps = st.empty()
+    left, right = st.columns(2, gap="medium")
+    with left, st.container(border=True):
+        reference, custom = choose_reference()
+        if reference is not None:
+            st.success(f"Using {reference.name.removesuffix('.fasta')} ({len(reference.sequence):,} bases)")
+    with right, st.container(border=True):
+        card_title(2, "Trace files", "Add the .ab1 files of all samples at once. All are compared with the same reference.")
+        files = st.file_uploader("Trace files", type=["ab1", "abi"], accept_multiple_files=True, key="batch_files", label_visibility="collapsed")
+    if reference is None or not files:
+        with steps:
+            stepper(1 if reference is None else 2, BATCH_STEPS)
+        st.info("Choose the reference on the left and add the trace files of all samples on the right.")
+        footer()
+        return
+
+    by_name = {f.name: f for f in files}
+    pairs = pair_files(list(by_name))
+    with st.container(border=True):
+        card_title(3, "Check the pairing and run", "Forward and reverse files are matched by their names (…_F / …_R, Fwd / Rev).")
+        st.dataframe(
+            pd.DataFrame([{"Sample": p.sample, "Forward": p.forward or "—", "Reverse": p.reverse or "—", "Note": p.note} for p in pairs]),
+            width="stretch", hide_index=True,
+        )
+        st.caption(
+            "The noisy ends are cut off automatically here. A sample marked “trimming needs review” may hide a "
+            "heterozygous insertion or deletion: open it as one sample to check."
+        )
+        settings = advanced_settings(custom)
+        run_clicked = st.button(f"Analyse {len(pairs)} sample{'s' if len(pairs) != 1 else ''}", type="primary", width="stretch")
+
+    signature = (
+        reference.name, tuple(reference.cdna_start or []), tuple(sorted((n, digest(f.getvalue())) for n, f in by_name.items())),
+        settings.second_peak_cutoff, settings.gap_open_penalty, settings.delins_cutoff, settings.first_number,
+    )
+    if run_clicked:
+        summary, rows, reports = [], [], {}
+        progress = st.progress(0.0, text="Starting…")
+        for i, pair in enumerate(pairs):
+            progress.progress(i / len(pairs), text=f"Analysing {pair.sample} ({i + 1} of {len(pairs)})…")
+            fwd = by_name[pair.forward].getvalue() if pair.forward else None
+            rev = by_name[pair.reverse].getvalue() if pair.reverse else None
+            review = False
+            for data in (fwd, rev):
+                if data is None:
+                    continue
+                try:
+                    raw = raw_trace(data)
+                    review = review or not raw.trim_is_unremarkable(*raw.suggested_trim(), DEFAULT_TRIM_WITHOUT_CONFIRM)
+                except Exception:
+                    pass
+            try:
+                result = analyze(reference, fwd, rev, settings)
+            except AnalysisError as ex:
+                summary.append({"Sample": pair.sample, "Status": "❌ " + str(ex).splitlines()[0], "Variants": None, "To check": None, "Trace quality": ""})
+                continue
+            notes = [m.splitlines()[0] for m in result.messages]
+            if review:
+                notes.append("trimming needs review")
+            worst = max((q.level for q in result.trace_quality), key=lambda x: ["good", "check", "poor"].index(x), default="good")
+            summary.append({
+                "Sample": pair.sample,
+                "Status": "✅ analysed" + (" · " + " · ".join(notes) if notes else ""),
+                "Variants": len(result.variants),
+                "To check": sum(1 for v in result.variants if v.quality != "good"),
+                "Trace quality": QUALITY[worst],
+            })
+            for v in result.variants:
+                rows.append({"sample": pair.sample, **v.to_dict()})
+            reports[pair.sample] = to_pdf_report(result, pair.forward or "", pair.reverse or "", pair.sample)
+        progress.empty()
+        st.session_state["batch"] = {"signature": signature, "summary": summary, "rows": rows, "reports": reports}
+
+    batch = st.session_state.get("batch")
+    current = batch is not None and batch["signature"] == signature
+    with steps:
+        stepper(4 if current else 3, BATCH_STEPS)
+    if batch is not None and not current:
+        st.warning("You changed the files or settings since the last analysis. Press the button to update the results.")
+    elif current:
+        with st.container(border=True):
+            card_title(4, "Results")
+            rows = batch["rows"]
+            failed = sum(1 for r in batch["summary"] if r["Variants"] is None)
+            tiles = [
+                (len(batch["summary"]) - failed, "samples analysed"),
+                (failed, "could not be analysed"),
+                (len(rows), "variants found"),
+                (sum(1 for r in rows if r["quality"] != "good"), "to check (signal quality)"),
+            ]
+            st.markdown(
+                '<div class="ss-tiles">' + "".join(f'<div class="ss-tile"><div class="n">{n}</div><div class="l">{l}</div></div>' for n, l in tiles) + "</div>",
+                unsafe_allow_html=True,
+            )
+            by_sample, all_variants, downloads = st.tabs(["Samples", "All variants", "Download"])
+            with by_sample:
+                st.dataframe(pd.DataFrame(batch["summary"]), width="stretch", hide_index=True)
+            with all_variants:
+                poor = sum(1 for r in rows if r["quality"] == "poor")
+                show_poor = st.toggle(f"Show the {poor} variant(s) with poor signal quality", value=False, key="batch_show_poor") if poor else True
+                listed = [r for r in rows if show_poor or r["quality"] != "poor"]
+                if not listed:
+                    st.info("No variants to show.")
+                else:
+                    st.dataframe(
+                        pd.DataFrame([
+                            {
+                                "Sample": r["sample"], "Variant": r["variant"], "Protein effect": r["protein"],
+                                "Effect type": r["consequence"], "Zygosity": ZYGOSITY.get(r["zygosity"], r["zygosity"]),
+                                "Signal quality": QUALITY[r["quality"]], "Found in": FOUND_IN.get(r["detected_in"], r["detected_in"]),
+                            }
+                            for r in listed
+                        ]),
+                        width="stretch", hide_index=True,
+                    )
+            with downloads:
+                import csv
+
+                out = io.StringIO()
+                writer = csv.DictWriter(out, fieldnames=["sample"] + COLUMNS, delimiter="\t", lineterminator="\n")
+                writer.writeheader()
+                writer.writerows(rows)
+                archive = io.BytesIO()
+                with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
+                    for sample, pdf in batch["reports"].items():
+                        z.writestr(f"{sample}_report.pdf", pdf)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown("**All variants in one table**  \nOne row per variant, with the sample name, for Excel.")
+                    st.download_button("Download table (TSV)", out.getvalue(), "sangerscope_batch_variants.tsv", "text/tab-separated-values", type="primary")
+                with c2:
+                    st.markdown("**One report per sample**  \nA zip file with a PDF report for every analysed sample.")
+                    st.download_button("Download reports (ZIP)", archive.getvalue(), "sangerscope_batch_reports.zip", "application/zip")
+    footer()
+
+
 def footer() -> None:
     with st.expander("Terms of use"):
         candidates = [Path.cwd() / "Terms_of_use.txt", Path(__file__).resolve().parent.parent / "Terms_of_use.txt"]
         terms = next((p for p in candidates if p.is_file()), None)
         st.text(terms.read_text(errors="replace") if terms else "Results require interpretation by an expert in the field.")
+    newest = latest_release()
+    if newest and _version_tuple(newest) > _version_tuple(__version__):
+        st.info(
+            f"A newer version of SangerScope ({newest}) is available. "
+            "[Download it here](https://github.com/alrafaykhan/SangerScope/releases/latest)."
+        )
     st.markdown(
         f'<div class="ss-foot">SangerScope {__version__} · runs on this computer; your files are not sent anywhere · '
         "results need interpretation by a qualified expert</div>",
@@ -682,6 +896,12 @@ def footer() -> None:
 
 def main() -> None:
     hero()
+    mode = st.radio(
+        "Mode", ["One sample", "Many samples (batch)"], horizontal=True, label_visibility="collapsed", key="mode",
+    )
+    if mode != "One sample":
+        batch_page()
+        return
     steps = st.empty()
 
     left, right = st.columns(2, gap="medium")

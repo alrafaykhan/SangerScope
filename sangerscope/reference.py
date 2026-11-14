@@ -169,6 +169,16 @@ class Reference:
     def spliced(self) -> str:
         return "".join(self.sequence[s - 1 : e] for s, e in zip(self.cdna_start, self.cdna_end))
 
+    def genomic_position(self, g_index: int) -> tuple[str, int, int] | None:
+        """(accession, position, strand) on the source record of a downloaded reference, if known."""
+        source = re.search(r"source=([A-Za-z0-9_.]+):(\d+)-(\d+)\(([+-])\)", self.description)
+        if not source:
+            return None
+        accession, lo, hi, strand = source.group(1), int(source.group(2)), int(source.group(3)), source.group(4)
+        if strand == "+":
+            return accession, lo + g_index - 1, 1
+        return accession, hi - (g_index - 1), -1
+
     def aa(self, triple: str) -> str:
         """Three-letter amino acid of a codon ('*' for stop) in this reference's genetic code."""
         from .symbols import UntranslatableError, aa_from_triple
