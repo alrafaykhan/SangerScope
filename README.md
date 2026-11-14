@@ -64,21 +64,16 @@ In normal cases, use of default value 5 is recommended. (range 1-10)<br>
 In High quality traces, using higher values will give correct delins variant calling. <br>
 In Poor Quality traces, increasing this value will result in the tendency of calling delins variants with longer insertion sequences. Decreasing this value will result in the tendency of calling delins variants with shorter insertion sequence or ins/del variant instead of delins variant. <br> 
 
-# 5. Validation against the Java version
-The analysis code was ported from the Java application step by step, and both give the same results on the same input: `tools/crosscheck.py` generates simulated traces (SNVs, insertions, deletions, duplications and delins variants, homozygous and heterozygous, on one or both strands), runs both implementations and compares the alignment and every variant call.
-
-```bash
-python tools/crosscheck.py --cases 500
-```
+# 5. Validation
+The analysis code was ported step by step from the Java application (SnackVar 2.4.3, with the split-codon fix). Before the Java code was removed from this repository, both versions were run on the same input and gave the same alignment and the same variant calls: on 2,500 simulated cases (SNVs, insertions, deletions, duplications and delins variants, homozygous and heterozygous, on one or both strands) and on four public real traces.
 
 Simulated traces are cleaner than real ones. Before clinical use, validate SangerScope on your own traces with known variants, as for any analysis software.<br>
 The two intended differences from the Java version: insertions are written as c.5_6insA instead of c.5_c.6insA, and a call made on both strands is always shown as "Fwd, Rev".
 
-The Java application (JavaFX) is kept in `legacy-java/`. To run it: `cd legacy-java`, then `./gradlew run` (Java 21). Run the Python tests with `pip install -e ".[test]"` and `pytest`.
+The Java application is available in the history of this repository (up to commit 4ca5b418) and in the original [SnackVar](https://github.com/Young-gonKim/SnackVar) repository. Run the tests with `pip install -e ".[test]"` and `pytest`.
 
 # 6. Utilized Libraries
 NumPy, Biopython (GenBank files), Streamlit and Plotly (browser interface)<br>
-The Java version uses BioJAVA Legacy (https://github.com/biojava/biojava-legacy)<br>
 
 # 7. Citation
 SangerScope is based on SnackVar. Please cite the original publication:<br>
@@ -93,7 +88,7 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).<br>
 Rewritten in Python with a browser interface, a command line tool and batch mode <br>
 Variant table export (TSV, CSV, JSON) and HTML report <br>
 Insertions and combined delins expressions written without a repeated "c." (c.5_6insA) <br>
-The Java application is kept in legacy-java/ <br><br>
+The Java application was removed; it remains in the repository history <br><br>
 **SangerScope 2.4.3 (changes since SnackVar Ver. 2.4.3)**<br>
 Renamed to SangerScope <br>
 Amino acid change corrected for SNVs in codons interrupted by an intron <br>

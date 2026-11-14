@@ -4,11 +4,3 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
-
-# Java (legacy-java)
-legacy-java/bin/
-legacy-java/build/
-legacy-java/.gradle/
-legacy-java/.settings/
-legacy-java/.classpath
-legacy-java/.project
