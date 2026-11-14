@@ -129,12 +129,56 @@ def cmd_batch(args) -> int:
     return 1 if failures else 0
 
 
+def _free_port(preferred: int) -> int:
+    """`preferred` if nothing listens on it, otherwise a free port chosen by the system."""
+    import socket
+
+    with socket.socket() as probe:
+        if probe.connect_ex(("127.0.0.1", preferred)) != 0:
+            return preferred
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _open_browser_when_ready(url: str, timeout: float = 90.0) -> None:
+    import threading
+    import time
+    import urllib.request
+    import webbrowser
+
+    def wait() -> None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                urllib.request.urlopen(url + "/_stcore/health", timeout=2).read()
+                webbrowser.open(url)
+                return
+            except OSError:
+                time.sleep(0.5)
+
+    threading.Thread(target=wait, daemon=True).start()
+
+
 def cmd_app(args) -> int:
     app = Path(__file__).resolve().parent / "app.py"
-    command = [sys.executable, "-m", "streamlit", "run", str(app), "--browser.gatherUsageStats", "false"]
-    if args.port:
-        command += ["--server.port", str(args.port)]
-    return subprocess.call(command)
+    port = args.port or _free_port(8501)
+    url = f"http://localhost:{port}"
+    command = [
+        sys.executable, "-m", "streamlit", "run", str(app),
+        "--server.port", str(port),
+        "--server.address", "localhost",
+        "--server.headless", "true",
+        "--browser.gatherUsageStats", "false",
+    ]
+    print(f"SangerScope is starting at {url}")
+    print("Keep this window open while you use it; close it (or press Ctrl+C) to stop.")
+    if not args.no_browser:
+        _open_browser_when_ready(url)
+    try:
+        return subprocess.call(command)
+    except KeyboardInterrupt:
+        return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -162,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
 
     app = sub.add_parser("app", help="start the browser interface")
     app.add_argument("--port", type=int, default=None)
+    app.add_argument("--no-browser", action="store_true", help="do not open the browser automatically")
     app.set_defaults(func=cmd_app)
 
     args = parser.parse_args(argv)

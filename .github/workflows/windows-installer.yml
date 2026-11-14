@@ -1,0 +1,88 @@
+name: Windows installer
+
+# Builds SangerScope-<version>-Setup.exe on Windows, installs it and checks that the
+# installed application runs. A tag "v<version>" also publishes the installer as a release.
+on:
+  push:
+    tags: ["v*"]
+    branches: [master]
+    paths:
+      - "sangerscope/**"
+      - "packaging/windows/**"
+      - "pyproject.toml"
+      - ".github/workflows/windows-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build installer
+        shell: pwsh
+        run: ./packaging/windows/build.ps1
+
+      - name: Install silently
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem build\windows\SangerScope-*-Setup.exe | Select-Object -First 1
+          "{0:N0} MB" -f ($setup.Length / 1MB)
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=C:\SangerScopeTest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
+          if (-not (Test-Path C:\SangerScopeTest\python\python.exe)) { throw "Python runtime missing" }
+          (Get-ChildItem C:\SangerScopeTest\reference).Count
+
+      - name: Analyse a simulated sample with the installed application
+        shell: pwsh
+        run: |
+          $py = "C:\SangerScopeTest\python\python.exe"
+          $env:PYTHONPATH = "$PWD\tests"
+          & $py packaging\windows\smoke_test.py C:\smoke
+          if ($LASTEXITCODE -ne 0) { throw "could not create test data" }
+          Remove-Item Env:PYTHONPATH
+          Set-Location C:\SangerScopeTest
+          & $py -m sangerscope run --ref C:\smoke\ref.fasta --fwd C:\smoke\s_F.ab1 --rev C:\smoke\s_R.ab1 --out C:\smoke\out.tsv
+          if ($LASTEXITCODE -ne 0) { throw "analysis failed" }
+          Get-Content C:\smoke\out.tsv
+          $expected = Get-Content C:\smoke\expected.txt
+          if (-not (Select-String -Path C:\smoke\out.tsv -SimpleMatch $expected)) { throw "expected variant $expected not found" }
+          & $py -m sangerscope run --ref "NM_000546.5(TP53)" --fwd C:\smoke\s_F.ab1 2>&1 | Select-Object -First 3
+
+      - name: Start the browser interface of the installed application
+        shell: pwsh
+        run: |
+          Set-Location C:\SangerScopeTest
+          $proc = Start-Process "C:\SangerScopeTest\python\python.exe" -ArgumentList "-m","sangerscope","app","--port","8765","--no-browser" -PassThru -RedirectStandardOutput C:\smoke\app.log -RedirectStandardError C:\smoke\app.err
+          $ok = $false
+          foreach ($i in 1..60) {
+            Start-Sleep -Seconds 2
+            try { if ((Invoke-WebRequest http://localhost:8765/_stcore/health -UseBasicParsing).StatusCode -eq 200) { $ok = $true; break } } catch {}
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Get-Content C:\smoke\app.log, C:\smoke\app.err -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "the browser interface did not start" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SangerScope-Windows-Setup
+          path: build/windows/SangerScope-*-Setup.exe
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = (Get-ChildItem build\windows\SangerScope-*-Setup.exe | Select-Object -First 1).FullName
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME $setup --title "SangerScope $env:GITHUB_REF_NAME" --notes "Windows: download SangerScope-*-Setup.exe and run it. No Python needed."
+          } else {
+            gh release upload $env:GITHUB_REF_NAME $setup --clobber
+          }

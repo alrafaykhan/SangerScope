@@ -403,8 +403,9 @@ def main() -> None:
             "3. Check the trimming, then press **Run**."
         )
         with st.expander("Terms of use"):
-            terms = Path(__file__).resolve().parent.parent / "Terms_of_use.txt"
-            st.text(terms.read_text(errors="replace") if terms.is_file() else "Results require interpretation by an expert in the field.")
+            candidates = [Path.cwd() / "Terms_of_use.txt", Path(__file__).resolve().parent.parent / "Terms_of_use.txt"]
+            terms = next((p for p in candidates if p.is_file()), None)
+            st.text(terms.read_text(errors="replace") if terms else "Results require interpretation by an expert in the field.")
         return
 
     st.caption(f"Reference: {reference.name} · {len(reference.sequence):,} bp")
