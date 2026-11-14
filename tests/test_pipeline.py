@@ -208,3 +208,39 @@ def test_command_line(synthetic, tmp_path, capsys):
     assert lines[0].startswith("sample\tstatus\tvariant")
     assert sum(1 for line in lines if f"c.81{ref_base}>{alt}" in line) == 2
     assert any(line.startswith("s3\terror") for line in lines)
+
+
+def test_clean_two_strand_call_is_rated_good(synthetic):
+    pos = EXON1_START + 80
+    alt = other_base(synthetic.sequence[pos])
+    result = run(synthetic, [Edit(pos, pos + 1, alt)], REGION_EXON1)
+    v = result.variants[0]
+    assert v.quality == "good"
+    assert v.fwd_phred >= 30 and v.rev_phred >= 30
+    assert [q.level for q in result.trace_quality] == ["good", "good"]
+    assert "\tgood\t" in to_delimited(result)
+
+
+def test_single_trace_call_carries_an_unconfirmed_note(synthetic):
+    pos = EXON1_START + 80
+    alt = other_base(synthetic.sequence[pos])
+    result = run(synthetic, [Edit(pos, pos + 1, alt)], REGION_EXON1, mode="fwd")
+    assert any("only one trace" in note for note in result.variants[0].quality_notes)
+
+
+def test_low_quality_trace_and_calls_are_flagged(synthetic):
+    """The same variant read from a trace whose quality values are all low."""
+    from sangerscope.abif import read_abif, write_abif
+    from sangerscope.analysis import Settings
+
+    pos = EXON1_START + 80
+    alt = other_base(synthetic.sequence[pos])
+    fwd, _ = make_reads(synthetic, [Edit(pos, pos + 1, alt)], REGION_EXON1, random.Random(5))
+    abif = read_abif(fwd)
+    low = write_abif(abif.traces, abif.sequence, abif.base_calls, [12] * len(abif.q_calls))
+    reference = Reference.from_fasta_text(synthetic.fasta, "synthetic.fasta")
+    result = analyze(reference, low, None, Settings(), fwd_trim=(-1, len(abif.traces["A"]) * 2))
+    assert result.trace_quality[0].level == "poor"
+    called = [v for v in result.variants if v.hgvs.startswith("c.81")]
+    assert called and called[0].quality == "poor"
+    assert any("quality" in note for note in called[0].quality_notes)

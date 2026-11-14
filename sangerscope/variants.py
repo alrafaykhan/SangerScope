@@ -42,6 +42,11 @@ class Variant:
         self.on_target = False
         self.zygosity = ""
         self.combined_expression = ""
+        # filled in by sangerscope.quality.assess
+        self.quality = "good"
+        self.quality_notes: list[str] = []
+        self.fwd_phred: int | None = None
+        self.rev_phred: int | None = None
 
     # ---------------------------------------------------------------- ordering
 
@@ -98,7 +103,11 @@ class Variant:
             "hit_count": self.hit_count,
             "on_target": self.on_target,
             "reference_position": self.g_index,
-            "equivalent_expressions": self.equivalent_expressions.strip().rstrip(";"),
+            "equivalent_expressions": self.equivalent_expressions.strip().rstrip(";").rstrip(", "),
+            "quality": self.quality,
+            "quality_notes": "; ".join(self.quality_notes),
+            "forward_phred": "" if self.fwd_phred is None else self.fwd_phred,
+            "reverse_phred": "" if self.rev_phred is None else self.rev_phred,
         }
 
 

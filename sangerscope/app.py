@@ -376,6 +376,7 @@ def trim_panel(label: str, key: str, data: bytes) -> tuple[int, int] | None:
 
 # ----------------------------------------------------------------------------- results
 
+QUALITY = {"good": "🟢 Good", "check": "🟡 Check", "poor": "🔴 Poor"}
 ZYGOSITY = {"hetero": "Heterozygous", "homo": "Homozygous"}
 FOUND_IN = {"Fwd, Rev": "Forward and reverse", "Fwd": "Forward only", "Rev": "Reverse only"}
 
@@ -393,6 +394,14 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
     variants = result.variants
     for message in result.messages:
         st.info(message.replace("\n", "  \n"))
+    for q in result.trace_quality:
+        if q.level == "poor":
+            st.error(
+                f"**{q.label}: poor sequence quality** ({'; '.join(q.notes)}). Variants from this trace may be "
+                "artefacts. Repeat the sequencing, or rely only on variants confirmed in a good trace."
+            )
+        elif q.level == "check":
+            st.warning(f"**{q.label}: reduced sequence quality** ({'; '.join(q.notes)}). Check each variant in the trace.")
 
     two_traces = result.fwd_trace is not None and result.rev_trace is not None
     hetero = sum(1 for v in variants if v.zygosity == "hetero")
@@ -404,6 +413,8 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
     ]
     if two_traces:
         tiles.append((both, "seen in both traces"))
+    doubtful = sum(1 for v in variants if v.quality != "good")
+    tiles.append((doubtful, "to check (signal quality)"))
     st.markdown(
         '<div class="ss-tiles">' + "".join(f'<div class="ss-tile"><div class="n">{n}</div><div class="l">{l}</div></div>' for n, l in tiles) + "</div>",
         unsafe_allow_html=True,
@@ -424,13 +435,17 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
                         "Variant": v.hgvs,
                         "Protein effect": v.protein,
                         "Zygosity": ZYGOSITY.get(v.zygosity, v.zygosity),
+                        "Signal quality": QUALITY[v.quality],
                         "Found in": FOUND_IN.get(v.detected_in, v.detected_in),
                         "Can also be written as": v.to_dict()["equivalent_expressions"],
                     }
                     for v in variants
                 ]
             )
-            st.caption("Click a row to look at that variant in the traces.")
+            st.caption(
+                "Click a row to look at that variant in the traces. Signal quality: 🟢 clean signal · "
+                "🟡 look at the trace before reporting · 🔴 do not report without repeating or confirming."
+            )
             event = st.dataframe(
                 table, width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key="variant_table"
             )
@@ -498,6 +513,13 @@ def show_variant(result: Result, variant) -> None:
         + "</div>",
         unsafe_allow_html=True,
     )
+    if variant.quality == "poor":
+        st.error("**Poor signal quality: do not report this variant without repeating the sequencing or confirming it "
+                 "on the other strand.**  \n" + "  \n".join("• " + n for n in variant.quality_notes))
+    elif variant.quality == "check":
+        st.warning("**Check this variant in the trace before reporting it.**  \n" + "  \n".join("• " + n for n in variant.quality_notes))
+    elif variant.quality_notes:
+        st.caption("Note: " + "; ".join(variant.quality_notes))
     column = variant.alignment_index
     span = 1
     if isinstance(variant, Indel) and variant.zygosity == "homo":

@@ -8,6 +8,7 @@ from .alignment import AlignedPair, Aligner
 from .caller import VariantCaller
 from .formatter import AlignedPoint, Formatter, NoContigError
 from .hetero import HeteroTrace
+from .quality import TraceQuality, assess
 from .reference import Reference
 from .symbols import GAP, reverse_complement
 from .trace import Trace
@@ -54,6 +55,8 @@ class Result:
     fwd_range: tuple[int, int] = (0, 0)
     rev_range: tuple[int, int] = (0, 0)
     settings: Settings = field(default_factory=Settings)
+    #: Quality summary of each analysed trace (see sangerscope.quality).
+    trace_quality: list[TraceQuality] = field(default_factory=list)
 
 
 def load_trace(data: bytes, settings: Settings, reverse: bool, trim: tuple[int, int] | None = None) -> Trace:
@@ -152,7 +155,7 @@ class Analysis:
                 "Hetero indel optimization mode is activated.\n"
                 "Higher gap opening penalty than default value is being used."
             )
-        return Result(
+        result = Result(
             variants=list(variants),
             aligned_points=self.aligned_points,
             messages=list(self.messages),
@@ -169,6 +172,8 @@ class Analysis:
             rev_range=(self.rev_trace_start, self.rev_trace_end),
             settings=self.settings,
         )
+        assess(result)
+        return result
 
     def _reset(self) -> None:
         self.formatter = Formatter(self.settings.first_number)

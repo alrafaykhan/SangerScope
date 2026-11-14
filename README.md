@@ -35,7 +35,8 @@ Since bases with double peaks have low phred scores, the initial suggestion is t
 In cases with heterozygous indel variants, adjust the "Bases to use" slider in order to include the maximal number of valid bases (including double peaks) and the minimal number of noise signals.<br>
 4. Click 'Find variants'.<br>
 5. The variant table is shown. Select a row to see the variant in the traces. The "Alignment" tab shows the aligned sequences, and the "Heterozygous indel" tab shows the two alleles separated from the double peaks.<br>
-6. The "Download" tab gives a printable report (HTML) and the variant table (TSV, JSON).
+6. Every variant has a signal quality rating: Good (clean signal), Check (look at the trace before reporting) or Poor (do not report without repeating the sequencing or confirming on the other strand). The rating uses the base quality values at and around the variant, double peaks in the surrounding bases, the size of the second peak for heterozygous calls, and whether the other trace shows the variant. A warning is shown when a whole trace is of poor quality. The rating is a guide, not a validated cut-off, and it does not change which variants are called.<br>
+7. The "Download" tab gives a printable report (HTML) and the variant table (TSV, JSON).
 
 # 3. Command Line
 One sample:
@@ -85,6 +86,7 @@ Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An
 
 # 8. Updates
 **Ver. 3.0.0**<br>
+Signal quality rating for every variant and a warning for poor traces <br>
 Browser interface, command line tool and batch mode <br>
 Variant table export (TSV, CSV, JSON) and HTML report <br>
 Amino acid change corrected for SNVs in codons interrupted by an intron <br>

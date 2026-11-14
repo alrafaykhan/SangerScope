@@ -15,6 +15,7 @@ from .symbols import GAP
 COLUMNS = [
     "variant", "protein", "zygosity", "type", "detected_in", "hit_count",
     "on_target", "reference_position", "equivalent_expressions",
+    "quality", "quality_notes", "forward_phred", "reverse_phred",
 ]
 
 
@@ -53,7 +54,16 @@ def run_info(result: Result, fwd_name: str = "", rev_name: str = "") -> dict:
 
 def to_json(result: Result, fwd_name: str = "", rev_name: str = "") -> str:
     return json.dumps(
-        {"run": run_info(result, fwd_name, rev_name), "messages": result.messages, "variants": variant_rows(result)},
+        {
+            "run": run_info(result, fwd_name, rev_name),
+            "messages": result.messages,
+            "trace_quality": [
+                {"trace": q.label, "quality": q.level, "mean_phred": q.mean_phred,
+                 "double_peak_fraction": round(q.mixed_fraction, 4), "notes": q.notes}
+                for q in result.trace_quality
+            ],
+            "variants": variant_rows(result),
+        },
         indent=2,
     )
 
@@ -91,6 +101,8 @@ def alignment_text(result: Result, width: int = 60) -> str:
         lines.append("")
     return "\n".join(lines)
 
+
+QUALITY_LABELS = {"good": "Good", "check": "Check", "poor": "Poor"}
 
 _BASE_COLOURS = {"A": "#1a8f3c", "C": "#1f5fd0", "G": "#222222", "T": "#d22b2b"}
 
@@ -142,15 +154,16 @@ def to_html_report(result: Result, fwd_name: str = "", rev_name: str = "", sampl
         if result.rev_trace is not None and v.rev_trace_char not in ("", GAP) and v.rev_trace_index > 0:
             snippets.append("<div class='lbl'>Reverse</div>" + trace_svg(result.rev_trace, v.rev_trace_index))
         rows.append(
-            "<tr><td><b>{}</b><br>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"
-            "<tr class='snip'><td colspan='5'>{}</td></tr>".format(
+            "<tr><td><b>{}</b><br>{}</td><td>{}</td><td>{}</td><td>{}</td><td><span class='q {}'>{}</span></td><td>{}</td></tr>"
+            "<tr class='snip'><td colspan='6'>{}{}</td></tr>".format(
                 e(d["variant"]), e(d["protein"]), e(d["zygosity"]), e(str(d["type"])), e(d["detected_in"]),
-                e(d["equivalent_expressions"]), "".join(snippets),
+                e(v.quality), e(QUALITY_LABELS[v.quality]), e(d["equivalent_expressions"]),
+                "".join(f"<div class='qn'>{e(n)}</div>" for n in v.quality_notes), "".join(snippets),
             )
         )
     table = (
         "<table><thead><tr><th>Variant</th><th>Zygosity</th><th>Type</th><th>Detected in</th>"
-        "<th>Equivalent expressions</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
+        "<th>Signal quality</th><th>Equivalent expressions</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
         if rows
         else "<p>No variant detected.</p>"
     )
@@ -170,6 +183,11 @@ def to_html_report(result: Result, fwd_name: str = "", rev_name: str = "", sampl
         if value != ""
     )
     messages = "".join(f"<p class='msg'>{e(m)}</p>" for m in result.messages)
+    messages += "".join(
+        f"<p class='msg'>{e(q.label)}: {e(QUALITY_LABELS[q.level].lower())} quality, {e('; '.join(q.notes))}.</p>"
+        for q in result.trace_quality
+        if q.level != "good"
+    )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>SangerScope Report</title>
 <style>
@@ -180,6 +198,9 @@ th,td{{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd;vertical-ali
 .details th{{width:260px;font-weight:600}}
 tr.snip td{{border-bottom:2px solid #bbb;padding-bottom:12px}}
 .lbl{{font-size:11px;color:#555;margin-top:6px}}
+.q{{padding:1px 8px;border-radius:10px;font-weight:600;font-size:12px}}
+.q.good{{background:#dff3e4;color:#14532d}} .q.check{{background:#fdf0d5;color:#7a4b00}} .q.poor{{background:#fde0e0;color:#8a1c1c}}
+.qn{{font-size:12px;color:#7a4b00}}
 .msg{{background:#fff6d6;border-left:4px solid #e0a800;padding:8px 12px;white-space:pre-line}}
 pre{{font-size:12px;line-height:1.35;overflow-x:auto}}
 .note{{font-size:11px;color:#555;margin-top:28px}}
@@ -192,6 +213,9 @@ pre{{font-size:12px;line-height:1.35;overflow-x:auto}}
 {table}
 <h2>Alignment</h2>
 <pre>{e(alignment_text(result))}</pre>
+<p class="note">Signal quality: Good = clean signal; Check = look at the trace before reporting;
+Poor = do not report without repeating the sequencing or confirming on the other strand. The rating is a guide based on
+base quality values and neighbouring double peaks, not a validated cut-off.</p>
 <p class="note">Results require interpretation by an expert in the field. Marks under the alignment:
 * difference from the reference, + agreement with low base quality.</p>
 </body></html>"""
