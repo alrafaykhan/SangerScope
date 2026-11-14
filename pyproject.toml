@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sangerscope"
+version = "3.0.0"
+description = "Sanger sequencing variant analysis with HGVS nomenclature (Python port of SnackVar)"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "biopython>=1.80",
+    "streamlit>=1.35",
+    "plotly>=5.18",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+sangerscope = "sangerscope.cli:main"
+
+[tool.setuptools]
+packages = ["sangerscope"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]

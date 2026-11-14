@@ -1,7 +1,14 @@
-/bin/
-/.settings/
-.classpath
-.project
-# Gradle
-/build/
-/.gradle/
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Java (legacy-java)
+legacy-java/bin/
+legacy-java/build/
+legacy-java/.gradle/
+legacy-java/.settings/
+legacy-java/.classpath
+legacy-java/.project

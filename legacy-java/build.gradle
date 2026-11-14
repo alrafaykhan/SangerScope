@@ -52,11 +52,23 @@ application {
     mainClass = 'com.opaleye.snackvar.MainStage'
 }
 
-// SangerScope looks for the bundled reference sequences in ./reference
+// the application looks for ./reference and Terms_of_use.txt in the repository root
 tasks.named('run') {
-    workingDir = projectDir
+    workingDir = rootDir.parentFile
 }
 
 test {
     useJUnitPlatform()
+}
+
+// Runs the analysis without the user interface on a manifest of cases (see HeadlessRunner);
+// used to compare results with the Python implementation: ./gradlew headless -Pmanifest=/path/to/manifest.tsv
+tasks.register('headless', JavaExec) {
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.opaleye.snackvar.HeadlessRunner'
+    args = [project.findProperty('manifest') ?: 'manifest.tsv']
+}
+
+tasks.register('printTestClasspath') {
+    doLast { println sourceSets.test.runtimeClasspath.asPath }
 }
