@@ -189,6 +189,7 @@ CSS = """
   background: linear-gradient(120deg, #0f766e 0%, #155e75 55%, #1e3a8a 100%); color: #ffffff; margin-bottom: 14px;}
 .ss-hero img {width: 62px; height: 62px; border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.25);}
 .ss-hero h1 {font-size: 30px; line-height: 1.1; margin: 0; padding: 0; color: #ffffff; letter-spacing: .2px;}
+.ss-hero .ss-by {font-size: 13px; font-weight: 400; color: #d7f3ef; letter-spacing: 0; margin-left: 6px;}
 .ss-hero p {margin: 4px 0 0; font-size: 15px; color: #d7f3ef;}
 .ss-steps {display: flex; gap: 10px; margin: 0 0 14px; flex-wrap: wrap;}
 .ss-step {flex: 1 1 200px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px;
@@ -234,7 +235,7 @@ def hero() -> None:
     uri = icon_data_uri()
     image = f'<img src="{uri}" alt="">' if uri else ""
     st.markdown(
-        f'<div class="ss-hero">{image}<div><h1>SangerScope</h1>'
+        f'<div class="ss-hero">{image}<div><h1>SangerScope <span class="ss-by">by Rafay Khan</span></h1>'
         f"<p>Find and name the variants in your Sanger sequencing traces</p></div></div>",
         unsafe_allow_html=True,
     )
