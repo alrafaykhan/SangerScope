@@ -41,10 +41,8 @@ jobs:
         shell: pwsh
         run: |
           $py = "C:\SangerScopeTest\python\python.exe"
-          $env:PYTHONPATH = "$PWD\tests"
           & $py packaging\windows\smoke_test.py C:\smoke
           if ($LASTEXITCODE -ne 0) { throw "could not create test data" }
-          Remove-Item Env:PYTHONPATH
           Set-Location C:\SangerScopeTest
           & $py -m sangerscope run --ref C:\smoke\ref.fasta --fwd C:\smoke\s_F.ab1 --rev C:\smoke\s_R.ab1 --out C:\smoke\out.tsv
           if ($LASTEXITCODE -ne 0) { throw "analysis failed" }

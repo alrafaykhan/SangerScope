@@ -1,11 +1,14 @@
 """Writes a simulated sample with one known variant, for testing an installed copy.
 
-Usage: python smoke_test.py OUTPUT_DIR   (needs tests/ on PYTHONPATH for the trace simulator)
+Usage: python smoke_test.py OUTPUT_DIR
 """
 
 import random
 import sys
 from pathlib import Path
+
+# the trace simulator lives in tests/ (an embedded Python runtime ignores PYTHONPATH)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests"))
 
 from synth import Edit, make_reads, make_reference
 
