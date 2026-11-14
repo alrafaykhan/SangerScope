@@ -1,0 +1,62 @@
+plugins {
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group = 'com.opaleye'
+version = '2.4.3'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+javafx {
+    version = '21.0.5'
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.swing']
+}
+
+// The project keeps the original Eclipse layout: sources and resources (FXML, CSS, icon) side by side in src/.
+sourceSets {
+    main {
+        java { srcDirs = ['src'] }
+        resources {
+            srcDirs = ['src']
+            exclude '**/*.java'
+        }
+    }
+    test {
+        java { srcDirs = ['test'] }
+    }
+}
+
+dependencies {
+    // BioJava Legacy 1.9.3, shipped with the repository
+    implementation files('lib/core-1.9.3.jar', 'lib/sequencing-1.9.3.jar')
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+application {
+    mainClass = 'com.opaleye.snackvar.MainStage'
+}
+
+// SnackVar looks for the bundled reference sequences in ./reference
+tasks.named('run') {
+    workingDir = projectDir
+}
+
+test {
+    useJUnitPlatform()
+}

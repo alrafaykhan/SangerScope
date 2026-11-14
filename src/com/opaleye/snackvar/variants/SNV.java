@@ -24,6 +24,8 @@ import org.biojava.bio.symbol.IllegalSymbolException;
 import org.biojava.bio.symbol.SymbolList;
 
 import com.opaleye.snackvar.RootController;
+import com.opaleye.snackvar.reference.CodingSequence;
+import com.opaleye.snackvar.reference.Reference;
 
 import javafx.beans.property.SimpleStringProperty;
 
@@ -90,7 +92,7 @@ public class SNV extends Variant{
 	 */
 	private void makeAAChange() {
 		//gIndex : starts from 1
-		String refString = rootController.reference.getRefString();
+		Reference reference = rootController.reference;
 		String originalSeq = null;
 		String variantSeq = null;
 		char variantChar = ' ';
@@ -102,19 +104,17 @@ public class SNV extends Variant{
 			variantChar =  revTraceChar;
 		try {
 			i_cIndex = Integer.parseInt(cIndex.replaceAll("[^0-9]",""));
-			if(i_cIndex % 3 == 1) {	// the first base of codon is mutated
-				originalSeq = refString.substring(gIndex-1, gIndex+2);
-				variantSeq  = variantChar + originalSeq.substring(1,3);
-			}
-			else if (i_cIndex % 3 == 2) {// the 2nd base of codon is mutated
-				originalSeq = refString.substring(gIndex-2, gIndex+1);
-				variantSeq =originalSeq.substring(0,1) + variantChar + originalSeq.substring(2,3); 
-			}
-			else {// the 3rd base of codon is mutated
-				originalSeq = refString.substring(gIndex-3, gIndex);
-				variantSeq = new String(originalSeq);
-				variantSeq  =  originalSeq.substring(0,2) + variantChar;
-			}
+			// position of the mutated base within its codon (0, 1, 2)
+			int frame = (i_cIndex-1) % 3;
+
+			// The codon is taken from the spliced coding sequence, not from adjacent bases of the
+			// genomic reference, because a codon can be interrupted by an intron.
+			originalSeq = CodingSequence.codonAt(reference.getRefString(), reference.getcDnaStart(), reference.getcDnaEnd(), gIndex, frame);
+
+			// not in a coding region (e.g. 3' UTR), or codon not completely covered by the reference
+			if(originalSeq == null) return;
+
+			variantSeq = originalSeq.substring(0, frame) + variantChar + originalSeq.substring(frame+1);
 			frameIndex = (i_cIndex-1)/3+1;
 		}
 		catch (Exception ex) {
