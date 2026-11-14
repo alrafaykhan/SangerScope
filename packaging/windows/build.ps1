@@ -31,8 +31,14 @@ Invoke-WebRequest "https://bootstrap.pypa.io/get-pip.py" -OutFile $getpip
 & "$python\python.exe" $getpip --no-warn-script-location
 if ($LASTEXITCODE -ne 0) { throw "get-pip failed" }
 Remove-Item $getpip
-& "$python\python.exe" -m pip install --no-warn-script-location --no-cache-dir "$root"
+# The embedded runtime cannot build packages from source (its ._pth file hides pip's build
+# environment), so install the dependencies as wheels and copy the pure Python package.
+$deps = & "$python\python.exe" -c "import tomllib; print('\n'.join(tomllib.load(open(r'$root\pyproject.toml','rb'))['project']['dependencies']))"
+if ($LASTEXITCODE -ne 0) { throw "could not read the dependencies" }
+& "$python\python.exe" -m pip install --no-warn-script-location --no-cache-dir --only-binary=:all: $deps
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
+Copy-Item (Join-Path $root "sangerscope") (Join-Path $python "Lib\site-packages\sangerscope") -Recurse
+Get-ChildItem (Join-Path $python "Lib\site-packages\sangerscope") -Filter "__pycache__" -Recurse -Directory | Remove-Item -Recurse -Force
 & "$python\python.exe" -m sangerscope --version
 if ($LASTEXITCODE -ne 0) { throw "SangerScope does not start in the embedded runtime" }
 
