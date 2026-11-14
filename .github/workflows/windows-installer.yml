@@ -1,7 +1,7 @@
 name: Windows installer
 
 # Builds SangerScope-<version>-Setup.exe on Windows, installs it and checks that the
-# installed application runs. A tag "v<version>" also publishes the installer as a release.
+# installed application runs, then publishes the installer as the release "v<version>".
 on:
   push:
     tags: ["v*"]
@@ -72,15 +72,18 @@ jobs:
           if-no-files-found: error
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $setup = (Get-ChildItem build\windows\SangerScope-*-Setup.exe | Select-Object -First 1).FullName
-          gh release view $env:GITHUB_REF_NAME 2>$null
+          $setup = Get-ChildItem build\windows\SangerScope-*-Setup.exe | Select-Object -First 1
+          $version = $setup.Name -replace '^SangerScope-(.*)-Setup\.exe$', '$1'
+          $tag = "v$version"
+          gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:GITHUB_REF_NAME $setup --title "SangerScope $env:GITHUB_REF_NAME" --notes "Windows: download SangerScope-*-Setup.exe and run it. No Python needed."
+            gh release create $tag $setup.FullName --target $env:GITHUB_SHA --title "SangerScope $version" --notes "Windows: download $($setup.Name) and run it. Nothing else needs to be installed."
           } else {
-            gh release upload $env:GITHUB_REF_NAME $setup --clobber
+            gh release upload $tag $setup.FullName --clobber
           }
+          if ($LASTEXITCODE -ne 0) { throw "publishing the release failed" }
