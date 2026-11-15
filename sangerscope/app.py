@@ -532,7 +532,7 @@ def trim_panel(label: str, key: str, data: bytes) -> tuple[int, int] | None:
                 raw,
                 shade=[(0, start_x, "#7f8fa6"), (end_x, raw.trace_length, "#7f8fa6")],
                 hover=[f"base {i + 1}: {raw.sequence[i]} (Q{raw.q_calls[i]})" for i in range(raw.sequence_length)],
-                height=220,
+                height=220, y_zoom=peak_height_control(f"trim_{key}"),
             )
             st.plotly_chart(fig, width="stretch", key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
             st.caption("Grey areas are cut off. Scroll to zoom in, drag to move along the trace.")
@@ -632,7 +632,7 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
             )
             rows = event.selection.rows if event and event.selection else []
             selected = variants[rows[0]] if rows else variants[0]
-            show_variant(result, selected, peak_height_control("variant"))
+            show_variant(result, selected)
 
     with tabs["Alignment"]:
         st.caption(
@@ -707,13 +707,14 @@ PEAK_HEIGHTS = [1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0]
 def peak_height_control(key: str) -> float:
     """Slider that magnifies the peaks (for weak signals); returns the zoom factor."""
     return st.select_slider(
-        "Peak height", PEAK_HEIGHTS, value=1.0, format_func=lambda x: f"{x:g}×", key=f"peak_height_{key}",
+        "🔍 Peak height: drag to the right to make the peaks taller", PEAK_HEIGHTS, value=1.0,
+        format_func=lambda x: f"{x:g}×", key=f"peak_height_{key}",
         help="Makes the peaks taller so that weak signals and small second peaks are easier to see. "
         "Tall peaks are cut off at the top. This changes the picture only, not the analysis.",
     )
 
 
-def show_variant(result: Result, variant, y_zoom: float = 1.0) -> None:
+def show_variant(result: Result, variant) -> None:
     also = variant.to_dict()["equivalent_expressions"]
     st.markdown(
         f'<div class="ss-variant"><div class="name">{variant.hgvs}</div>'
@@ -737,6 +738,8 @@ def show_variant(result: Result, variant, y_zoom: float = 1.0) -> None:
         st.warning("**Check this variant in the trace before reporting it.**  \n" + "  \n".join("• " + n for n in variant.quality_notes))
     elif variant.quality_notes:
         st.caption("Note: " + "; ".join(variant.quality_notes))
+    # directly above the trace pictures, where it is looked for
+    y_zoom = peak_height_control("variant")
     column = variant.alignment_index
     span = 1
     if isinstance(variant, Indel) and variant.zygosity == "homo":

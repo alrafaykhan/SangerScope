@@ -1,6 +1,6 @@
 <img src="sangerscope/assets/icon.png" width="96" align="right">
 
-SangerScope Ver 3.1.2
+SangerScope Ver 3.1.3
 ======================
 SangerScope is a free software for Sanger sequencing analysis in clinical environment.<br>
 It supports automatic detection of variants including SNVs and indel variants (homozygous and heterozygous).<br>
@@ -11,7 +11,7 @@ It runs in the browser and from the command line.
 <img src="fig/fig_web_interface.png">
 
 # 1. How to Run
-**Windows, with the setup program:** download `SangerScope-3.1.2-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
+**Windows, with the setup program:** download `SangerScope-3.1.3-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
 The setup program is not code-signed yet, so Windows SmartScreen shows a blue "Windows protected your PC" window: choose "More info", then "Run anyway".
 
 **Windows, without the blue warning:** open Windows PowerShell (Start menu, type "PowerShell"), paste this line and press Enter:
@@ -114,6 +114,8 @@ The analysis method and the bundled reference sequences are derived from SnackVa
 Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An Open-Source Software for Sanger Sequencing Analysis Optimized for Clinical Use. J. Mol. Diagn. 2021;23:140-8. <br>
 
 # 8. Updates
+**Ver. 3.1.3**<br>
+Peak height slider placed directly above the trace pictures, and also available in the trimming view <br><br>
 **Ver. 3.1.2**<br>
 Installation on Windows by one PowerShell line, which avoids the SmartScreen warning of the unsigned setup program <br><br>
 **Ver. 3.1.1**<br>
