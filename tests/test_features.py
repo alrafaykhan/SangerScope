@@ -136,3 +136,14 @@ def test_pdf_report(synthetic):
     pdf = to_pdf_report(result, "s_F.ab1", "s_R.ab1", sample="Sample 1", analyst="Tester")
     assert pdf.startswith(b"%PDF-") and len(pdf) > 3000
     assert to_pdf_report(result, variants=[]).startswith(b"%PDF-")
+
+
+def test_franklin_link_format_and_chromosome_versions():
+    from sangerscope import links
+
+    assert links.franklin_url("17", 7577538, "C", "T") == \
+        "https://franklin.genoox.com/clinical-db/variant/snp/chr17-7577538-C-T"
+    assert links._assembly_of("NC_000017.10") == ("hg19", "17")
+    assert links._assembly_of("NC_000017.11") == ("hg38", "17")
+    assert links._assembly_of("NC_000023.10") == ("hg19", "X")
+    assert links._assembly_of("NG_017013.2") is None

@@ -1,6 +1,6 @@
 <img src="sangerscope/assets/icon.png" width="96" align="right">
 
-SangerScope Ver 3.2.0
+SangerScope Ver 3.2.1
 ======================
 SangerScope is a free software for Sanger sequencing analysis in clinical environment.<br>
 It supports automatic detection of variants including SNVs and indel variants (homozygous and heterozygous).<br>
@@ -11,7 +11,7 @@ It runs in the browser and from the command line.
 <img src="fig/fig_web_interface.png">
 
 # 1. How to Run
-**Windows, with the setup program:** download `SangerScope-3.2.0-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
+**Windows, with the setup program:** download `SangerScope-3.2.1-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
 The setup program is not code-signed yet, so Windows SmartScreen shows a blue "Windows protected your PC" window: choose "More info", then "Run anyway".
 
 **Windows, without the blue warning:** open Windows PowerShell (Start menu, type "PowerShell"), paste this line and press Enter:
@@ -52,7 +52,7 @@ In cases with heterozygous indel variants, adjust the "Bases to use" slider in o
 &nbsp;&nbsp;- the name in HGVS nomenclature and the **protein effect**, for example `p.(Ser450Leu)`, `p.(Phe924=)` for a silent change, `p.(Met1?)` for a changed start codon, `p.(Arg97Profs*23)` for a frameshift;<br>
 &nbsp;&nbsp;- the **effect type**: missense, synonymous, nonsense, frameshift, in-frame deletion/insertion, start lost, stop lost, splice site (first two intron bases), splice region, intronic, 5' UTR or 3' UTR;<br>
 &nbsp;&nbsp;- for heterozygous SNVs, a rough estimate of the **proportion of the signal** that carries the variant, from the peak heights;<br>
-&nbsp;&nbsp;- for genes downloaded from NCBI, the **position on the genome** record; for human transcripts, links that search the variant in **ClinVar** and **VarSome**.<br>
+&nbsp;&nbsp;- for genes downloaded from NCBI, the **position on the genome** record; for human transcripts, a link that searches the variant in **ClinVar**, its position on the genome (hg38 and hg19), and a link that opens it in **Franklin** (Genoox). The genome position is looked up at NCBI when the variant is shown; only the variant name is sent. NCBI cannot yet place intronic variants, so those have no Franklin link.<br>
 7. Every variant has a **signal quality** rating: Good (clean signal), Check (look at the trace before reporting) or Poor (do not report without repeating the sequencing or confirming on the other strand). The rating uses the base quality values at and around the variant, double peaks in the surrounding bases, the size of the second peak for heterozygous calls, and whether the other trace shows the variant. Variants rated Poor are shown and marked in red; a switch above the table hides them. A warning is shown when a whole trace is of poor quality. The rating is a guide, not a validated cut-off, and it does not change which variants are called.<br>
 8. Not every double peak is a heterozygote. For every heterozygous SNV, SangerScope checks the **peak shape** of the double peak and shows it in its own column (✅ typical, ⚠️ check, ❌ not typical). A real heterozygote shows two peaks centred on the same position, a second peak of normal width and roughly symmetric (not a broad dye blob or a one-sample spike), a second peak well above the background of its colour, a second colour that is not simply bleed-through (the same small signal under the other peaks of the main colour), and a main peak reduced to about half of nearby single peaks. A double peak that fails these checks is rated "not typical" and its signal quality is set to Poor, with the reason shown. The variant stays in the list, so that a real but unusual heterozygote is not lost; the decision remains with the reviewer, ideally with confirmation on the other strand.<br>
 9. The "Download" tab gives a printable report (PDF) with your sample ID and name, and the variant table (TSV, JSON).
@@ -115,6 +115,9 @@ The analysis method and the bundled reference sequences are derived from SnackVa
 Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An Open-Source Software for Sanger Sequencing Analysis Optimized for Clinical Use. J. Mol. Diagn. 2021;23:140-8. <br>
 
 # 8. Updates
+**Ver. 3.2.1**<br>
+Franklin link replaces the VarSome link, which led to a security check instead of the variant <br>
+Genome position (hg38 and hg19) of human variants <br><br>
 **Ver. 3.2.0**<br>
 Peak shape check for heterozygous calls: co-location of the two peaks, peak of its own, width and symmetry, height above background, colour bleed-through, and reduction of the main peak <br><br>
 **Ver. 3.1.3**<br>
@@ -124,7 +127,6 @@ Installation on Windows by one PowerShell line, which avoids the SmartScreen war
 **Ver. 3.1.1**<br>
 Faster browser interface: the report is built only when downloaded, references are read once, and only the part of the trace around a variant is drawn <br>
 "Peak height" control for the trace pictures <br>
-Link that searches the variant in VarSome <br>
 Variants with poor signal quality shown by default (a switch hides them) <br><br>
 **Ver. 3.1.0**<br>
 Protein effect written to HGVS recommendations (silent, start codon, stop codon and frameshift changes) <br>

@@ -25,7 +25,7 @@ from sangerscope.analysis import (
     Settings,
     load_trace,
 )
-from sangerscope import ncbi
+from sangerscope import links, ncbi
 from sangerscope.export import COLUMNS, alignment_blocks, to_delimited, to_html_report, to_json, to_pdf_report
 from sangerscope.pairing import pair_files
 from sangerscope.reference import Reference, ReferenceError
@@ -705,6 +705,35 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
             st.download_button("Download data (JSON)", to_json(result, fwd_name, rev_name), f"{sample or stem}_variants.json", "application/json")
 
 
+@st.cache_data(show_spinner=False, max_entries=500)
+def genome_positions(transcript_hgvs: str) -> tuple[dict, str]:
+    """hg19/hg38 positions of a variant from NCBI, and a message when they cannot be found."""
+    try:
+        return links.genome_positions(transcript_hgvs), ""
+    except links.LinkError as ex:
+        return {}, str(ex)
+
+
+def franklin_html(variant) -> str:
+    """Franklin link (and genome positions) of a human variant, or the reason there is none."""
+    if not variant.transcript_hgvs:
+        return ""
+    with st.spinner("Looking up the genome position at NCBI…"):
+        positions, problem = genome_positions(variant.transcript_hgvs)
+    if "hg19" not in positions:
+        return f' &nbsp;·&nbsp; <span style="color:#6b7a77">Franklin link not available: {problem or "no hg19 position"}</span>'
+    out = (f' &nbsp;·&nbsp; <a href="{links.franklin_url(*positions["hg19"])}" target="_blank">'
+           "Open this variant in Franklin ↗</a>")
+    where = []
+    for build in ("hg38", "hg19"):
+        if build in positions:
+            chromosome, position, ref, alt = positions[build]
+            where.append(f"chr{chromosome}:{position:,} {ref}>{alt} ({build})")
+    if where:
+        out += f'</div><div class="sub">Genome position: {" · ".join(where)}'
+    return out
+
+
 PEAK_HEIGHTS = [1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0]
 
 
@@ -728,7 +757,7 @@ def show_variant(result: Result, variant) -> None:
         + (f'<div class="sub">About {variant.variant_fraction:.0%} of the signal at this base carries the variant '
            "(rough estimate from peak heights)</div>" if variant.variant_fraction is not None and variant.zygosity == "hetero" else "")
         + (f'<div class="sub"><a href="{variant.clinvar_url}" target="_blank">Search for this variant in ClinVar ↗</a>'
-           f' &nbsp;·&nbsp; <a href="{variant.varsome_url}" target="_blank">Search for this variant in VarSome ↗</a></div>'
+           + franklin_html(variant) + "</div>"
            if variant.clinvar_url else "")
         + f'<div class="sub" style="margin-top:8px">{variant_chips(variant)}</div>'
         + (f'<div class="sub" style="margin-top:8px">Can also be written as: {also}</div>' if also else "")

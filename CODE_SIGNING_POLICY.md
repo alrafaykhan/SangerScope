@@ -22,4 +22,6 @@ sent anywhere. The program contacts other servers only in these cases:
   search words or the accession are sent.
 - GitHub, once on start, to ask whether a newer version exists. This can be
   switched off by setting `SANGERSCOPE_NO_UPDATE_CHECK=1`.
-- ClinVar and VarSome, only when the user clicks the search link of a variant.
+- NCBI Variation Services, when a human variant is shown, to find its position on the
+  genome for the Franklin link: only the variant name (transcript and c. change) is sent.
+- ClinVar and Franklin, only when the user clicks the link of a variant.

@@ -1,7 +1,7 @@
 """Extra information about each variant that does not affect calling.
 
 - position on the source genome, for references downloaded from NCBI
-- ClinVar and VarSome search links, for human RefSeq transcripts
+- a ClinVar search link and the transcript name used for the Franklin link, for human RefSeq transcripts
 - the proportion of the signal that carries the variant (from peak heights)
 """
 
@@ -12,7 +12,7 @@ import urllib.parse
 
 from .symbols import GAP, reverse_complement
 
-_HUMAN_TRANSCRIPT = re.compile(r"^(N[MR]_\d+)(?:\.\d+)?\((.+?)\)")
+_HUMAN_TRANSCRIPT = re.compile(r"^(N[MR]_\d+(?:\.\d+)?)\((.+?)\)")
 
 
 def _fraction(trace, base_number: int, ref_base: str, alt_base: str) -> float | None:
@@ -52,12 +52,12 @@ def annotate(result) -> None:
 
         # --- ClinVar search
         v.clinvar_url = ""
-        v.varsome_url = ""
+        v.transcript_hgvs = ""
         if human:
             term = f'"{human.group(2)}"[gene] AND "{v.hgvs}"'
             v.clinvar_url = "https://www.ncbi.nlm.nih.gov/clinvar/?term=" + urllib.parse.quote(term)
-            # VarSome's documented link form: /variant/<genome build>/<GENE>:<c. change>
-            v.varsome_url = "https://varsome.com/variant/hg38/" + urllib.parse.quote(f"{human.group(2)}:{v.hgvs}", safe=":")
+            # used to look up the genome position (and the Franklin link) when the variant is shown
+            v.transcript_hgvs = f"{human.group(1)}:{v.hgvs}"
 
         # --- proportion of the signal carrying the variant
         v.variant_fraction = None
