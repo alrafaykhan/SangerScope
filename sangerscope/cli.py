@@ -221,6 +221,7 @@ def cmd_app(args) -> int:
         "--server.address", "localhost",
         "--server.headless", "true",
         "--browser.gatherUsageStats", "false",
+        "--server.fileWatcherType", "none",
         "--client.toolbarMode", "minimal",
         "--theme.base", "light",
         "--theme.primaryColor", "#0f766e",

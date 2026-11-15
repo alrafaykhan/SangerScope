@@ -1,7 +1,7 @@
 """Extra information about each variant that does not affect calling.
 
 - position on the source genome, for references downloaded from NCBI
-- a ClinVar search link, for human RefSeq transcripts
+- ClinVar and VarSome search links, for human RefSeq transcripts
 - the proportion of the signal that carries the variant (from peak heights)
 """
 
@@ -52,9 +52,12 @@ def annotate(result) -> None:
 
         # --- ClinVar search
         v.clinvar_url = ""
+        v.varsome_url = ""
         if human:
             term = f'"{human.group(2)}"[gene] AND "{v.hgvs}"'
             v.clinvar_url = "https://www.ncbi.nlm.nih.gov/clinvar/?term=" + urllib.parse.quote(term)
+            # VarSome's documented link form: /variant/<genome build>/<GENE>:<c. change>
+            v.varsome_url = "https://varsome.com/variant/hg38/" + urllib.parse.quote(f"{human.group(2)}:{v.hgvs}", safe=":")
 
         # --- proportion of the signal carrying the variant
         v.variant_fraction = None

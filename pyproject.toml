@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sangerscope"
-version = "3.1.0"
+version = "3.1.1"
 description = "Sanger sequencing variant analysis with HGVS nomenclature"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24",
     "biopython>=1.80",
-    "streamlit>=1.50",
+    "streamlit>=1.67",
     "plotly>=5.18",
     "pandas>=2.0",
     "fpdf2>=2.7",

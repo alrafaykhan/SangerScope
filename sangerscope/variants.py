@@ -79,6 +79,7 @@ class Variant:
         # filled in by sangerscope.annotate.annotate
         self.genomic = ""
         self.clinvar_url = ""
+        self.varsome_url = ""
         self.variant_fraction: float | None = None
         # filled in by sangerscope.quality.assess
         self.quality = "good"

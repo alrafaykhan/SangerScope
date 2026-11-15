@@ -42,6 +42,9 @@ Get-ChildItem (Join-Path $python "Lib\site-packages\sangerscope") -Filter "__pyc
 & "$python\python.exe" -m sangerscope --version
 if ($LASTEXITCODE -ne 0) { throw "SangerScope does not start in the embedded runtime" }
 
+# compile everything once so that the first start does not have to
+& "$python\python.exe" -m compileall -q "$python\Lib\site-packages" | Out-Null
+
 Write-Host "Packing the reference sequences into one archive"
 & "$python\python.exe" -c "import zipfile, pathlib; src = pathlib.Path(r'$root') / 'reference'; z = zipfile.ZipFile(r'$stage\references.zip', 'w', zipfile.ZIP_DEFLATED, compresslevel=9); [z.write(p, p.name) for p in sorted(src.glob('*.fasta'))]; z.close(); print(len(z.namelist()), 'references')"
 if ($LASTEXITCODE -ne 0) { throw "packing the references failed" }

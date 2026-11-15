@@ -60,6 +60,16 @@ def bundled_names(directory: str) -> list[str]:
     return list_bundled(directory)
 
 
+@st.cache_data(show_spinner=False, max_entries=200)
+def bundled_search(directory: str, query: str) -> list[str]:
+    return search(bundled_names(directory), query)
+
+
+@st.cache_data(show_spinner=False, max_entries=20)
+def bundled_reference(directory: str, name: str) -> Reference:
+    return load_bundled(directory, name)
+
+
 @st.cache_data(show_spinner=False, ttl=6 * 3600)
 def latest_release() -> str:
     """Version of the newest published release, or "" when it cannot be checked."""
@@ -102,6 +112,9 @@ def trace_figure(
     hover: list[str] | None = None,
     extra_rows: list[tuple[str, list[str]]] | None = None,
     height: int = 260,
+    y_zoom: float = 1.0,
+    around_base: int | None = None,
+    span: int = 90,
 ) -> go.Figure:
     """Electropherogram with the called bases under the signal.
 
@@ -110,12 +123,21 @@ def trace_figure(
     """
     fig = go.Figure()
     n = trace.trace_length
-    xs = list(range(n))
-    top = max(1, trace.max_height)
+    # Only the part of the trace around `around_base` (1-based) is drawn: sending the whole
+    # trace to the browser for every figure makes the page slow.
+    first_base, last_base = 0, trace.sequence_length - 1
+    lo, hi = 0, n
+    if around_base is not None and trace.sequence_length:
+        first_base = max(0, around_base - 1 - span)
+        last_base = min(trace.sequence_length - 1, around_base - 1 + span)
+        lo = max(0, trace.base_calls[first_base] - 8)
+        hi = min(n, trace.base_calls[last_base] + 9)
+    xs = list(range(lo, hi))
+    top = max(1, trace.max_height) / max(0.1, y_zoom)
     for base in "ACGT":
         fig.add_trace(
             go.Scatter(
-                x=xs, y=trace.channel(base)[:n], mode="lines", name=base,
+                x=xs, y=trace.channel(base)[lo:hi], mode="lines", name=base,
                 line=dict(color=BASE_COLOURS[base], width=1.5), hoverinfo="skip",
             )
         )
@@ -124,7 +146,10 @@ def trace_figure(
     for r, (label, letters) in enumerate(rows):
         y = -(r + 0.6) * row_gap
         for base in list("ACGT") + ["other"]:
-            idx = [i for i, ch in enumerate(letters) if (ch == base if base != "other" else ch not in "ACGT")]
+            idx = [
+                i for i in range(first_base, min(last_base + 1, len(letters)))
+                if (letters[i] == base if base != "other" else letters[i] not in "ACGT")
+            ]
             if not idx:
                 continue
             fig.add_trace(
@@ -410,7 +435,7 @@ def choose_reference() -> tuple[Reference | None, bool]:
             )
             if not query:
                 return None, False
-            matches = search(names, query)
+            matches = bundled_search(str(directory), query)
             if not matches:
                 st.warning(f"Nothing matches “{query}”. Check the spelling, or use another source.")
                 return None, False
@@ -419,7 +444,7 @@ def choose_reference() -> tuple[Reference | None, bool]:
                 help="A gene can have several transcripts. ★ marks the MANE Select transcript, the one "
                 "recommended for clinical reporting. Pick the one your laboratory reports against.",
             )
-            return load_bundled(directory, name), False
+            return bundled_reference(str(directory), name), False
         if source == "Any organism (NCBI)":
             return ncbi_panel(), False
         if source == "My saved references":
@@ -500,16 +525,17 @@ def trim_panel(label: str, key: str, data: bytes) -> tuple[int, int] | None:
             )
         chosen = st.slider("Bases to use", 1, raw.sequence_length, (first, last), key=f"trim_{key}_{digest(data)}")
         positions = auto if chosen == (first, last) else raw.positions_for_bases(*chosen)
-        start_x = max(0, positions[0] // TRACE_WIDTH)
-        end_x = min(raw.trace_length, positions[1] // TRACE_WIDTH)
-        fig = trace_figure(
-            raw,
-            shade=[(0, start_x, "#7f8fa6"), (end_x, raw.trace_length, "#7f8fa6")],
-            hover=[f"base {i + 1}: {raw.sequence[i]} (Q{raw.q_calls[i]})" for i in range(raw.sequence_length)],
-            height=220,
-        )
-        st.plotly_chart(fig, width="stretch", key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
-        st.caption("Grey areas are cut off. Scroll to zoom in, drag to move along the trace.")
+        if st.toggle("Show the whole trace", value=needs_review, key=f"trimshow_{key}_{digest(data)}"):
+            start_x = max(0, positions[0] // TRACE_WIDTH)
+            end_x = min(raw.trace_length, positions[1] // TRACE_WIDTH)
+            fig = trace_figure(
+                raw,
+                shade=[(0, start_x, "#7f8fa6"), (end_x, raw.trace_length, "#7f8fa6")],
+                hover=[f"base {i + 1}: {raw.sequence[i]} (Q{raw.q_calls[i]})" for i in range(raw.sequence_length)],
+                height=220,
+            )
+            st.plotly_chart(fig, width="stretch", key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
+            st.caption("Grey areas are cut off. Scroll to zoom in, drag to move along the trace.")
     return positions
 
 
@@ -573,14 +599,14 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
             if poor:
                 show_poor = st.toggle(
                     f"Show the {len(poor)} variant{'s' if len(poor) != 1 else ''} with poor signal quality",
-                    value=False, key="show_poor",
-                    help="Calls from noisy stretches are usually artefacts, so they are hidden until you ask for them.",
+                    value=True, key="show_poor",
+                    help="Calls from noisy stretches are usually artefacts. Switch this off to hide them.",
                 )
                 if not show_poor:
                     shown = [v for v in variants if v.quality != "poor"]
         st.session_state["shown_variants"] = shown
         if variants and not shown:
-            st.warning("Every variant found has poor signal quality. Turn the switch on to see them.")
+            st.warning("Every variant found has poor signal quality, and those are switched off.")
         elif shown:
             variants = shown
             table = pd.DataFrame(
@@ -606,7 +632,7 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
             )
             rows = event.selection.rows if event and event.selection else []
             selected = variants[rows[0]] if rows else variants[0]
-            show_variant(result, selected)
+            show_variant(result, selected, peak_height_control("variant"))
 
     with tabs["Alignment"]:
         st.caption(
@@ -621,6 +647,7 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
                 "After a heterozygous insertion or deletion the two copies of the gene are out of step, so every "
                 "position shows two peaks. Below, the two copies are separated again."
             )
+            hetero_zoom = peak_height_control("hetero")
             for label, hetero_trace, trace in (
                 ("Forward trace", result.fwd_hetero, result.fwd_trace), ("Reverse trace", result.rev_hetero, result.rev_trace)
             ):
@@ -641,6 +668,7 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
                     shade=[(trace.base_calls[start - 1] - 5, trace.base_calls[start - 1] + 5, "#f5c542")],
                     extra_rows=[("Reference copy", list(hetero_trace.ref_seq)), ("Other copy", other)],
                     hover=base_hover(result, hetero_trace.direction),
+                    y_zoom=hetero_zoom, around_base=start, span=140,
                 )
                 st.plotly_chart(fig, width="stretch", key=f"hetfig_{label}", config={"scrollZoom": True, "displaylogo": False})
 
@@ -659,7 +687,7 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
         with c1:
             st.markdown("**Report**  \nA page to print or file, with the variants, trace pictures and the alignment.")
             st.download_button(
-                "Download report (PDF)", to_pdf_report(result, fwd_name, rev_name, sample, analyst, listed),
+                "Download report (PDF)", lambda: to_pdf_report(result, fwd_name, rev_name, sample, analyst, listed),
                 f"{sample or stem}_report.pdf", "application/pdf", type="primary",
             )
         with c2:
@@ -673,7 +701,19 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
             st.download_button("Download data (JSON)", to_json(result, fwd_name, rev_name), f"{sample or stem}_variants.json", "application/json")
 
 
-def show_variant(result: Result, variant) -> None:
+PEAK_HEIGHTS = [1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0]
+
+
+def peak_height_control(key: str) -> float:
+    """Slider that magnifies the peaks (for weak signals); returns the zoom factor."""
+    return st.select_slider(
+        "Peak height", PEAK_HEIGHTS, value=1.0, format_func=lambda x: f"{x:g}×", key=f"peak_height_{key}",
+        help="Makes the peaks taller so that weak signals and small second peaks are easier to see. "
+        "Tall peaks are cut off at the top. This changes the picture only, not the analysis.",
+    )
+
+
+def show_variant(result: Result, variant, y_zoom: float = 1.0) -> None:
     also = variant.to_dict()["equivalent_expressions"]
     st.markdown(
         f'<div class="ss-variant"><div class="name">{variant.hgvs}</div>'
@@ -682,7 +722,8 @@ def show_variant(result: Result, variant) -> None:
         + (f'<div class="sub">Genome position: {variant.genomic}</div>' if variant.genomic else "")
         + (f'<div class="sub">About {variant.variant_fraction:.0%} of the signal at this base carries the variant '
            "(rough estimate from peak heights)</div>" if variant.variant_fraction is not None and variant.zygosity == "hetero" else "")
-        + (f'<div class="sub"><a href="{variant.clinvar_url}" target="_blank">Search for this variant in ClinVar ↗</a></div>'
+        + (f'<div class="sub"><a href="{variant.clinvar_url}" target="_blank">Search for this variant in ClinVar ↗</a>'
+           f' &nbsp;·&nbsp; <a href="{variant.varsome_url}" target="_blank">Search for this variant in VarSome ↗</a></div>'
            if variant.clinvar_url else "")
         + f'<div class="sub" style="margin-top:8px">{variant_chips(variant)}</div>'
         + (f'<div class="sub" style="margin-top:8px">Can also be written as: {also}</div>' if also else "")
@@ -723,6 +764,7 @@ def show_variant(result: Result, variant) -> None:
             trace, x_range=window(trace, base_number),
             shade=[(x - 5, x + 5, "#f5c542")],
             hover=base_hover(result, direction),
+            y_zoom=y_zoom, around_base=base_number,
         )
         st.plotly_chart(fig, width="stretch", key=f"varfig_{direction}", config={"scrollZoom": True, "displaylogo": False})
 
@@ -839,7 +881,7 @@ def batch_page() -> None:
                 st.dataframe(pd.DataFrame(batch["summary"]), width="stretch", hide_index=True)
             with all_variants:
                 poor = sum(1 for r in rows if r["quality"] == "poor")
-                show_poor = st.toggle(f"Show the {poor} variant(s) with poor signal quality", value=False, key="batch_show_poor") if poor else True
+                show_poor = st.toggle(f"Show the {poor} variant(s) with poor signal quality", value=True, key="batch_show_poor") if poor else True
                 listed = [r for r in rows if show_poor or r["quality"] != "poor"]
                 if not listed:
                     st.info("No variants to show.")
