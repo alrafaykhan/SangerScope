@@ -14,7 +14,7 @@ It runs in the browser and from the command line.
 **Windows:** download `SangerScope-3.1.1-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
 The installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC": choose "More info", then "Run anyway".
 
-**Any system, from the source code:** you need [Python](https://www.python.org) 3.10 or higher.
+**Any system, from the source code:** you need [Python](https://www.python.org) 3.11 or higher.
 
 ```bash
 git clone https://github.com/alrafaykhan/SangerScope.git
