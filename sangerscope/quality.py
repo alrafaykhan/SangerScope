@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .peakshape import DOUBT, FAIL, OK, assess_double_peak
 from .symbols import GAP, is_acgt
 
 GOOD, CHECK, POOR = "good", "check", "poor"
 _RANK = {GOOD: 0, CHECK: 1, POOR: 2}
+_SHAPES: list = []  # peak shapes judged for the variant being assessed
 
 FLANK = 10  # bases on each side used to judge the neighbourhood of a call
 SITE_PHRED_POOR, SITE_PHRED_CHECK = 20, 30
@@ -127,6 +129,14 @@ def _site_evidence(trace, hetero, base_index: int, heterozygous_site: bool) -> t
                     notes.append(f"the second peak is small ({ratio:.0%} of the main peak)")
         except IndexError:
             pass
+        shape = assess_double_peak(trace, base_index)
+        if shape is not None:
+            _SHAPES.append(shape)
+            if shape.verdict == FAIL:
+                level = _worse(level, POOR)
+            elif shape.verdict == DOUBT:
+                level = _worse(level, CHECK)
+            notes += [f"peak shape: {r}" for r in shape.reasons]
     return level, notes, site_q
 
 
@@ -149,6 +159,7 @@ def assess(result) -> None:
         level = GOOD
         notes: list[str] = []
         v.fwd_phred = v.rev_phred = None
+        _SHAPES.clear()
         hetero_indel = isinstance(v, Indel) and v.zygosity == "hetero"
         supporting = [1, -1] if v.hit_count == 2 else [v.direction]
         best_supporting = None
@@ -201,5 +212,14 @@ def assess(result) -> None:
         elif not two_traces:
             notes.append("only one trace was analysed, so the variant is not confirmed on the other strand")
 
+        # verdict on the double peak, from the best supporting trace
+        v.peak_shape = ""
+        if _SHAPES:
+            order = {OK: 0, DOUBT: 1, FAIL: 2}
+            v.peak_shape = min((s.verdict for s in _SHAPES), key=order.get)
+            if v.peak_shape == OK and any(s.verdict != OK for s in _SHAPES):
+                v.peak_shape = DOUBT
+        if v.peak_shape == FAIL:
+            level = POOR  # a double peak that does not look like a heterozygote in any trace
         v.quality = level
         v.quality_notes = notes

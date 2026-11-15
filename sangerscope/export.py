@@ -15,7 +15,7 @@ from .symbols import GAP
 COLUMNS = [
     "variant", "protein", "zygosity", "type", "detected_in", "hit_count",
     "on_target", "reference_position", "equivalent_expressions",
-    "consequence", "variant_fraction", "genomic",
+    "consequence", "variant_fraction", "genomic", "peak_shape",
     "quality", "quality_notes", "forward_phred", "reverse_phred",
 ]
 
@@ -326,6 +326,8 @@ def to_pdf_report(result: Result, fwd_name: str = "", rev_name: str = "", sample
         facts = [_ZYGOSITY.get(v.zygosity, v.zygosity), v.consequence, "found in " + v.detected_in.lower()]
         if v.variant_fraction is not None and v.zygosity == "hetero":
             facts.append(f"variant signal about {v.variant_fraction:.0%}")
+        if v.peak_shape:
+            facts.append(f"peak shape {v.peak_shape}")
         if v.genomic:
             facts.append(v.genomic)
         pdf.multi_cell(width, 5, _latin(" - ".join(f for f in facts if f)), new_x="LMARGIN", new_y="NEXT")

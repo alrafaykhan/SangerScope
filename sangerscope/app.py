@@ -542,6 +542,7 @@ def trim_panel(label: str, key: str, data: bytes) -> tuple[int, int] | None:
 # ----------------------------------------------------------------------------- results
 
 QUALITY = {"good": "🟢 Good", "check": "🟡 Check", "poor": "🔴 Poor"}
+PEAK_SHAPE = {"typical": "✅ typical", "check": "⚠️ check", "not typical": "❌ not typical"}
 ZYGOSITY = {"hetero": "Heterozygous", "homo": "Homozygous"}
 FOUND_IN = {"Fwd, Rev": "Forward and reverse", "Fwd": "Forward only", "Rev": "Reverse only"}
 
@@ -617,6 +618,7 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
                         "Effect type": v.consequence,
                         "Zygosity": ZYGOSITY.get(v.zygosity, v.zygosity),
                         "Signal quality": QUALITY[v.quality],
+                        "Peak shape": PEAK_SHAPE.get(v.peak_shape, ""),
                         "Found in": FOUND_IN.get(v.detected_in, v.detected_in),
                         "Can also be written as": v.to_dict()["equivalent_expressions"],
                     }
@@ -625,7 +627,9 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
             )
             st.caption(
                 "Click a row to look at that variant in the traces. Signal quality: 🟢 clean signal · "
-                "🟡 look at the trace before reporting · 🔴 do not report without repeating or confirming."
+                "🟡 look at the trace before reporting · 🔴 do not report without repeating or confirming. "
+                "Peak shape (heterozygous SNVs): whether the double peak looks like a real heterozygote — two "
+                "co-centred peaks of normal shape, above the background, not colour bleed-through."
             )
             event = st.dataframe(
                 table, width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key="variant_table"
@@ -731,7 +735,11 @@ def show_variant(result: Result, variant) -> None:
         + "</div>",
         unsafe_allow_html=True,
     )
-    if variant.quality == "poor":
+    if variant.peak_shape == "not typical":
+        st.error("**This double peak does not look like a real heterozygote.** It is more likely an artefact; do not "
+                 "report it without repeating the sequencing or confirming it another way.  \n"
+                 + "  \n".join("• " + n for n in variant.quality_notes))
+    elif variant.quality == "poor":
         st.error("**Poor signal quality: do not report this variant without repeating the sequencing or confirming it "
                  "on the other strand.**  \n" + "  \n".join("• " + n for n in variant.quality_notes))
     elif variant.quality == "check":
@@ -894,7 +902,8 @@ def batch_page() -> None:
                             {
                                 "Sample": r["sample"], "Variant": r["variant"], "Protein effect": r["protein"],
                                 "Effect type": r["consequence"], "Zygosity": ZYGOSITY.get(r["zygosity"], r["zygosity"]),
-                                "Signal quality": QUALITY[r["quality"]], "Found in": FOUND_IN.get(r["detected_in"], r["detected_in"]),
+                                "Signal quality": QUALITY[r["quality"]], "Peak shape": PEAK_SHAPE.get(r["peak_shape"], ""),
+                                "Found in": FOUND_IN.get(r["detected_in"], r["detected_in"]),
                             }
                             for r in listed
                         ]),

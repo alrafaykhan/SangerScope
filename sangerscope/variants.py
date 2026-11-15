@@ -83,6 +83,8 @@ class Variant:
         self.variant_fraction: float | None = None
         # filled in by sangerscope.quality.assess
         self.quality = "good"
+        #: for heterozygous SNVs: "typical", "check" or "not typical" (sangerscope.peakshape)
+        self.peak_shape = ""
         self.quality_notes: list[str] = []
         self.fwd_phred: int | None = None
         self.rev_phred: int | None = None
@@ -146,6 +148,7 @@ class Variant:
             "consequence": self.consequence,
             "variant_fraction": "" if self.variant_fraction is None else round(self.variant_fraction * 100),
             "genomic": self.genomic,
+            "peak_shape": self.peak_shape,
             "quality": self.quality,
             "quality_notes": "; ".join(self.quality_notes),
             "forward_phred": "" if self.fwd_phred is None else self.fwd_phred,
