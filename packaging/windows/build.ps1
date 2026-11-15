@@ -50,7 +50,17 @@ Write-Host "Packing the reference sequences into one archive"
 if ($LASTEXITCODE -ne 0) { throw "packing the references failed" }
 
 Copy-Item (Join-Path $PSScriptRoot "SangerScope.bat") $stage
+Copy-Item (Join-Path $PSScriptRoot "SangerScope.ico") $stage
+foreach ($file in "LICENSE", "NOTICE", "Terms_of_use.txt", "README.md") { Copy-Item (Join-Path $root $file) $stage }
 $version = (& "$python\python.exe" -c "import sangerscope; print(sangerscope.__version__)").Trim()
+
+# portable package: the same files as the installer puts in place, for install.ps1
+$out = Join-Path $root "build\windows"
+$portable = Join-Path $out "SangerScope-$version-portable.zip"
+if (Test-Path $portable) { Remove-Item $portable }
+Write-Host "Writing the portable package"
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $portable, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 
 $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
 if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }

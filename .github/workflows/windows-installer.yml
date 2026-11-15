@@ -80,11 +80,42 @@ jobs:
           Get-Content C:\smoke\app.log, C:\smoke\app.err -ErrorAction SilentlyContinue
           if (-not $ok) { throw "the browser interface did not start" }
 
+      - name: Install the portable package with install.ps1 and start it
+        shell: pwsh
+        run: |
+          $zip = (Get-ChildItem build\windows\SangerScope-*-portable.zip | Select-Object -First 1).FullName
+          "{0:N0} MB" -f ((Get-Item $zip).Length / 1MB)
+          ./packaging/windows/install.ps1 -ZipPath $zip -InstallDir C:\PortableTest
+          if (-not (Test-Path C:\PortableTest\SangerScope.bat)) { throw "launcher missing" }
+          $desktop = Join-Path ([Environment]::GetFolderPath("Desktop")) "SangerScope.lnk"
+          if (-not (Test-Path $desktop)) { throw "desktop shortcut missing" }
+          Set-Location C:\PortableTest
+          & C:\PortableTest\python\python.exe -m sangerscope --version
+          if ($LASTEXITCODE -ne 0) { throw "the portable copy does not start" }
+          & C:\PortableTest\python\python.exe -c "from sangerscope import refs; print(refs.resolve('BRCA2').name)"
+          if ($LASTEXITCODE -ne 0) { throw "the portable copy cannot read the references" }
+
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
           name: SangerScope-Windows-Setup
           path: build/windows/SangerScope-*-Setup.exe
           if-no-files-found: error
+
+      # Free signing through SignPath Foundation. Runs only after the project has been accepted and the
+      # repository variable SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN have been set
+      # (see CODE_SIGNING_POLICY.md). The signed installer then replaces the unsigned one.
+      - name: Sign the installer
+        if: vars.SIGNPATH_ORGANIZATION_ID != '' && github.ref == 'refs/heads/master'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: SangerScope
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: build/windows
 
       - name: Publish release
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
@@ -96,9 +127,11 @@ jobs:
           $version = $setup.Name -replace '^SangerScope-(.*)-Setup\.exe$', '$1'
           $tag = "v$version"
           gh release view $tag *> $null
+          $portable = (Get-ChildItem build\windows\SangerScope-*-portable.zip | Select-Object -First 1).FullName
+          $notes = "Windows: download $($setup.Name) and run it. Nothing else needs to be installed. The portable zip is used by the one-line PowerShell installation described in the README."
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $setup.FullName --target $env:GITHUB_SHA --title "SangerScope $version" --notes "Windows: download $($setup.Name) and run it. Nothing else needs to be installed."
+            gh release create $tag $setup.FullName $portable --target $env:GITHUB_SHA --title "SangerScope $version" --notes $notes
           } else {
-            gh release upload $tag $setup.FullName --clobber
+            gh release upload $tag $setup.FullName $portable --clobber
           }
           if ($LASTEXITCODE -ne 0) { throw "publishing the release failed" }

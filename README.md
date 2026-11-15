@@ -1,6 +1,6 @@
 <img src="sangerscope/assets/icon.png" width="96" align="right">
 
-SangerScope Ver 3.1.1
+SangerScope Ver 3.1.2
 ======================
 SangerScope is a free software for Sanger sequencing analysis in clinical environment.<br>
 It supports automatic detection of variants including SNVs and indel variants (homozygous and heterozygous).<br>
@@ -11,8 +11,16 @@ It runs in the browser and from the command line.
 <img src="fig/fig_web_interface.png">
 
 # 1. How to Run
-**Windows:** download `SangerScope-3.1.1-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
-The installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC": choose "More info", then "Run anyway".
+**Windows, with the setup program:** download `SangerScope-3.1.2-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
+The setup program is not code-signed yet, so Windows SmartScreen shows a blue "Windows protected your PC" window: choose "More info", then "Run anyway".
+
+**Windows, without the blue warning:** open Windows PowerShell (Start menu, type "PowerShell"), paste this line and press Enter:
+
+```
+irm https://raw.githubusercontent.com/alrafaykhan/SangerScope/master/packaging/windows/install.ps1 | iex
+```
+
+It downloads the same program from the latest release, installs it for your user account and creates the same shortcuts. No administrator rights are needed. To remove it, delete the folder `%LOCALAPPDATA%\Programs\SangerScope` and the shortcuts.
 
 **Any system, from the source code:** you need [Python](https://www.python.org) 3.11 or higher.
 
@@ -106,6 +114,8 @@ The analysis method and the bundled reference sequences are derived from SnackVa
 Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An Open-Source Software for Sanger Sequencing Analysis Optimized for Clinical Use. J. Mol. Diagn. 2021;23:140-8. <br>
 
 # 8. Updates
+**Ver. 3.1.2**<br>
+Installation on Windows by one PowerShell line, which avoids the SmartScreen warning of the unsigned setup program <br><br>
 **Ver. 3.1.1**<br>
 Faster browser interface: the report is built only when downloaded, references are read once, and only the part of the trace around a variant is drawn <br>
 "Peak height" control for the trace pictures <br>
