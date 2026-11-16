@@ -147,3 +147,36 @@ def test_franklin_link_format_and_chromosome_versions():
     assert links._assembly_of("NC_000017.11") == ("hg38", "17")
     assert links._assembly_of("NC_000023.10") == ("hg19", "X")
     assert links._assembly_of("NG_017013.2") is None
+
+
+def test_intronic_position_by_counting_from_a_coding_base(monkeypatch):
+    """Counting along the reference from an anchor, on the minus strand, with the genome check."""
+    from sangerscope import links
+    from sangerscope.reference import Reference
+
+    # reference (gene reads left to right): 5 intron bases, then a 6-base exon, then 5 intron bases
+    ref = Reference("NM_1.1(TEST)", "acgtaATGGCAccgga", [6], [11])
+    # genome forward strand holds the reverse complement; the exon's first base (g=6, A) sits at 1000
+    genome = {i: b for i, b in zip(range(990, 1006), "TCCGGTGCCATTACGT")}
+
+    def anchor(reference, transcript, g_target):
+        return 6, {"hg19": ("NC_000017.10", 1000, -1)}
+
+    def bases(accession, first, last):
+        return "".join(genome[i] for i in range(first, last + 1))
+
+    def get(path):
+        acc, pos, ref_bases, alt = links.urllib.parse.unquote(path.split("/")[1]).split(":")
+        return {"data": {"chrom": acc, "pos": int(pos) + 1, "ref": ref_bases, "alt": alt}}
+
+    monkeypatch.setattr(links, "_anchor", anchor)
+    monkeypatch.setattr(links, "_genome_bases", bases)
+    monkeypatch.setattr(links, "_get", get)
+    monkeypatch.setattr(links, "VERIFY_FLANK", 3)
+    # g=13 is the second intron base after the exon (c.6+2, a "c"): on the genome 1000 - 7 = 993, a "G"
+    assert links.genome_positions_from_reference(ref, "NM_1.1", "snv", 13, 13, "A") == {"hg19": ("17", 993, "G", "T")}
+    # a reference that does not match the genome gives no position
+    genome[995] = "A"
+    import pytest
+    with pytest.raises(links.LinkError):
+        links.genome_positions_from_reference(ref, "NM_1.1", "snv", 13, 13, "A")

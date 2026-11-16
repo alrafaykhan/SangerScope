@@ -32,7 +32,7 @@ from sangerscope.reference import Reference, ReferenceError
 from sangerscope.refs import default_reference_dir, display_name, list_bundled, load_bundled, search
 from sangerscope.symbols import GAP
 from sangerscope.trace import TRACE_WIDTH, Trace
-from sangerscope.variants import Indel
+from sangerscope.variants import DELETION, DELINS, DUPLICATION, INSERTION, Indel
 
 # Conventional electropherogram colours; the plot keeps a light surface in both themes so G (dark) stays visible.
 BASE_COLOURS = {"A": "#1a8f3c", "C": "#1f5fd0", "G": "#222222", "T": "#d22b2b"}
@@ -720,20 +720,35 @@ def show_results(result: Result, fwd_name: str, rev_name: str) -> None:
 
 
 @st.cache_data(show_spinner=False, max_entries=500)
-def genome_positions(transcript_hgvs: str) -> tuple[dict, str]:
-    """hg19/hg38 positions of a variant from NCBI, and a message when they cannot be found."""
+def genome_positions(transcript_hgvs: str, kind: str, g1: int, g2: int, sequence: str, _reference) -> tuple[dict, str]:
+    """hg19/hg38 positions of a variant, and a message when they cannot be found.
+
+    NCBI places the variant from its name; when it cannot (intronic variants), the position is
+    counted from a nearby coding base along the built-in reference and checked against the genome.
+    """
     try:
         return links.genome_positions(transcript_hgvs), ""
-    except links.LinkError as ex:
-        return {}, str(ex)
+    except links.LinkError as first:
+        try:
+            transcript = transcript_hgvs.split(":")[0]
+            return links.genome_positions_from_reference(_reference, transcript, kind, g1, g2, sequence), ""
+        except links.LinkError as second:
+            return {}, f"{first}; {second}"
 
 
-def franklin_html(variant) -> str:
+_KINDS = {DELETION: "deletion", INSERTION: "insertion", DUPLICATION: "duplication", DELINS: "delins"}
+
+
+def franklin_html(variant, reference) -> str:
     """Franklin link (and genome positions) of a human variant, or the reason there is none."""
     if not variant.transcript_hgvs:
         return ""
+    if isinstance(variant, Indel):
+        kind, g1, g2, seq = _KINDS[variant.type], variant.g_index, variant.g_index2, variant.indel_seq
+    else:
+        kind, g1, g2, seq = "snv", variant.g_index, variant.g_index, variant.alt_char
     with st.spinner("Looking up the genome position at NCBI…"):
-        positions, problem = genome_positions(variant.transcript_hgvs)
+        positions, problem = genome_positions(variant.transcript_hgvs, kind, g1, g2, seq, reference)
     if "hg19" not in positions:
         return f' &nbsp;·&nbsp; <span style="color:#6b7a77">Franklin link not available: {problem or "no hg19 position"}</span>'
     out = (f' &nbsp;·&nbsp; <a href="{links.franklin_url(*positions["hg19"])}" target="_blank">'
@@ -771,7 +786,7 @@ def show_variant(result: Result, variant) -> None:
         + (f'<div class="sub">About {variant.variant_fraction:.0%} of the signal at this base carries the variant '
            "(rough estimate from peak heights)</div>" if variant.variant_fraction is not None and variant.zygosity == "hetero" else "")
         + (f'<div class="sub"><a href="{variant.clinvar_url}" target="_blank">Search for this variant in ClinVar ↗</a>'
-           + franklin_html(variant) + "</div>"
+           + franklin_html(variant, result.reference) + "</div>"
            if variant.clinvar_url else "")
         + f'<div class="sub" style="margin-top:8px">{variant_chips(variant)}</div>'
         + (f'<div class="sub" style="margin-top:8px">Can also be written as: {also}</div>' if also else "")

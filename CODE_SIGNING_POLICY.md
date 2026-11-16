@@ -24,4 +24,6 @@ sent anywhere. The program contacts other servers only in these cases:
   switched off by setting `SANGERSCOPE_NO_UPDATE_CHECK=1`.
 - NCBI Variation Services, when a human variant is shown, to find its position on the
   genome for the Franklin link: only the variant name (transcript and c. change) is sent.
+  For intronic variants, a nearby coding position of the transcript and a short stretch of the
+  public genome sequence are requested instead.
 - ClinVar and Franklin, only when the user clicks the link of a variant.
