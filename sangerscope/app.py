@@ -115,6 +115,7 @@ def trace_figure(
     y_zoom: float = 1.0,
     around_base: int | None = None,
     span: int = 90,
+    overview: bool = False,
 ) -> go.Figure:
     """Electropherogram with the called bases under the signal.
 
@@ -127,6 +128,10 @@ def trace_figure(
     # trace to the browser for every figure makes the page slow.
     first_base, last_base = 0, trace.sequence_length - 1
     lo, hi = 0, n
+    if trace.sequence_length:
+        # many files keep recording long after the last base: leave that empty signal out
+        lo = max(0, trace.base_calls[0] - 40)
+        hi = min(n, trace.base_calls[-1] + 41)
     if around_base is not None and trace.sequence_length:
         first_base = max(0, around_base - 1 - span)
         last_base = min(trace.sequence_length - 1, around_base - 1 + span)
@@ -173,7 +178,11 @@ def trace_figure(
         height=height + 22 * (len(rows) - 1), margin=dict(l=110 if len(rows) > 1 else 10, r=10, t=10, b=10),
         paper_bgcolor=SURFACE, plot_bgcolor=SURFACE, font=dict(color=INK),
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1, font=dict(color=INK)),
-        xaxis=dict(range=list(x_range) if x_range else None, showgrid=False, zeroline=False, showticklabels=False),
+        xaxis=dict(
+            range=list(x_range) if x_range else [lo, hi - 1], showgrid=False, zeroline=False, showticklabels=False,
+            # a small picture of the whole trace under the plot; drag its window to move along the trace
+            rangeslider=dict(visible=True, thickness=0.12, bgcolor="#f3f5f5", range=[lo, hi - 1]) if overview else None,
+        ),
         yaxis=dict(range=[-(len(rows) + 0.3) * row_gap, top * 1.05], gridcolor=GRID, zeroline=False,
                    tickfont=dict(color="#777777", size=10), fixedrange=True),
         dragmode="pan", hovermode="closest",
@@ -528,14 +537,25 @@ def trim_panel(label: str, key: str, data: bytes) -> tuple[int, int] | None:
         if st.toggle("Show the whole trace", value=needs_review, key=f"trimshow_{key}_{digest(data)}"):
             start_x = max(0, positions[0] // TRACE_WIDTH)
             end_x = min(raw.trace_length, positions[1] // TRACE_WIDTH)
+            # open zoomed on the cut where the most is removed, so peaks and letters are readable
+            kept_first, kept_last = raw.kept_bases(*positions)
+            if kept_first == 0:
+                kept_first, kept_last = 1, raw.sequence_length
+            cut_start, cut_end = kept_first - 1, raw.sequence_length - kept_last
+            focus = kept_first if cut_start >= cut_end else kept_last
             fig = trace_figure(
                 raw,
+                x_range=window(raw, focus, 45),
                 shade=[(0, start_x, "#7f8fa6"), (end_x, raw.trace_length, "#7f8fa6")],
                 hover=[f"base {i + 1}: {raw.sequence[i]} (Q{raw.q_calls[i]})" for i in range(raw.sequence_length)],
-                height=220, y_zoom=peak_height_control(f"trim_{key}"),
+                height=260, y_zoom=peak_height_control(f"trim_{key}"), overview=True,
             )
             st.plotly_chart(fig, width="stretch", key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
-            st.caption("Grey areas are cut off. Scroll to zoom in, drag to move along the trace.")
+            st.caption(
+                f"Showing the bases around base {focus}, where the {'start' if focus == kept_first else 'end'} is cut. "
+                "Grey areas are cut off. Drag the window in the strip below to move along the whole trace; "
+                "scroll to zoom."
+            )
     return positions
 
 
