@@ -534,28 +534,22 @@ def trim_panel(label: str, key: str, data: bytes) -> tuple[int, int] | None:
             )
         chosen = st.slider("Bases to use", 1, raw.sequence_length, (first, last), key=f"trim_{key}_{digest(data)}")
         positions = auto if chosen == (first, last) else raw.positions_for_bases(*chosen)
-        if st.toggle("Show the whole trace", value=needs_review, key=f"trimshow_{key}_{digest(data)}"):
-            start_x = max(0, positions[0] // TRACE_WIDTH)
-            end_x = min(raw.trace_length, positions[1] // TRACE_WIDTH)
-            # open zoomed on the cut where the most is removed, so peaks and letters are readable
-            kept_first, kept_last = raw.kept_bases(*positions)
-            if kept_first == 0:
-                kept_first, kept_last = 1, raw.sequence_length
-            cut_start, cut_end = kept_first - 1, raw.sequence_length - kept_last
-            focus = kept_first if cut_start >= cut_end else kept_last
-            fig = trace_figure(
-                raw,
-                x_range=window(raw, focus, 45),
-                shade=[(0, start_x, "#7f8fa6"), (end_x, raw.trace_length, "#7f8fa6")],
-                hover=[f"base {i + 1}: {raw.sequence[i]} (Q{raw.q_calls[i]})" for i in range(raw.sequence_length)],
-                height=260, y_zoom=peak_height_control(f"trim_{key}"), overview=True,
-            )
-            st.plotly_chart(fig, width="stretch", key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
-            st.caption(
-                f"Showing the bases around base {focus}, where the {'start' if focus == kept_first else 'end'} is cut. "
-                "Grey areas are cut off. Drag the window in the strip below to move along the whole trace; "
-                "scroll to zoom."
-            )
+        start_x = max(0, positions[0] // TRACE_WIDTH)
+        end_x = min(raw.trace_length, positions[1] // TRACE_WIDTH)
+        # the plot opens at the start of the trace; the strip below it shows the whole trace
+        first_view = raw.base_calls[0] - 40, raw.base_calls[min(raw.sequence_length - 1, 89)] + 6
+        fig = trace_figure(
+            raw,
+            x_range=first_view,
+            shade=[(0, start_x, "#7f8fa6"), (end_x, raw.trace_length, "#7f8fa6")],
+            hover=[f"base {i + 1}: {raw.sequence[i]} (Q{raw.q_calls[i]})" for i in range(raw.sequence_length)],
+            height=260, y_zoom=peak_height_control(f"trim_{key}"), overview=True,
+        )
+        st.plotly_chart(fig, width="stretch", key=f"trimfig_{key}", config={"scrollZoom": True, "displaylogo": False})
+        st.caption(
+            "Showing the start of the trace. Grey areas are cut off. Drag the window in the strip below to move "
+            "along the whole trace; scroll to zoom."
+        )
     return positions
 
 

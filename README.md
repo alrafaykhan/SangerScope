@@ -1,6 +1,6 @@
 <img src="sangerscope/assets/icon.png" width="96" align="right">
 
-SangerScope Ver 3.2.2
+SangerScope Ver 1.0.0
 ======================
 SangerScope is a free software for Sanger sequencing analysis in clinical environment.<br>
 It supports automatic detection of variants including SNVs and indel variants (homozygous and heterozygous).<br>
@@ -11,7 +11,7 @@ It runs in the browser and from the command line.
 <img src="fig/fig_web_interface.png">
 
 # 1. How to Run
-**Windows, with the setup program:** download `SangerScope-3.2.2-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
+**Windows, with the setup program:** download `SangerScope-1.0.0-Setup.exe` from the [latest release](https://github.com/alrafaykhan/SangerScope/releases/latest) and run it. Nothing else needs to be installed. Start SangerScope from the desktop shortcut; it opens in your browser. Keep the black window open while you work, and close it to stop.<br>
 The setup program is not code-signed yet, so Windows SmartScreen shows a blue "Windows protected your PC" window: choose "More info", then "Run anyway".
 
 **Windows, without the blue warning:** open Windows PowerShell (Start menu, type "PowerShell"), paste this line and press Enter:
@@ -115,36 +115,13 @@ The analysis method and the bundled reference sequences are derived from SnackVa
 Kim YG, Kim MJ, Lee JS, Lee JA, Song JY, Cho SI, Park SS, Seong MW. SnackVar: An Open-Source Software for Sanger Sequencing Analysis Optimized for Clinical Use. J. Mol. Diagn. 2021;23:140-8. <br>
 
 # 8. Updates
-**Ver. 3.2.2**<br>
-Trimming view: the empty recording after the last base is left out, the view opens zoomed on the cut, and a strip under the plot shows the whole trace <br><br>
-**Ver. 3.2.1**<br>
-Franklin link replaces the VarSome link, which led to a security check instead of the variant <br>
-Genome position (hg38 and hg19) of human variants <br><br>
-**Ver. 3.2.0**<br>
-Peak shape check for heterozygous calls: co-location of the two peaks, peak of its own, width and symmetry, height above background, colour bleed-through, and reduction of the main peak <br><br>
-**Ver. 3.1.3**<br>
-Peak height slider placed directly above the trace pictures, and also available in the trimming view <br><br>
-**Ver. 3.1.2**<br>
-Installation on Windows by one PowerShell line, which avoids the SmartScreen warning of the unsigned setup program <br><br>
-**Ver. 3.1.1**<br>
-Faster browser interface: the report is built only when downloaded, references are read once, and only the part of the trace around a variant is drawn <br>
-"Peak height" control for the trace pictures <br>
-Variants with poor signal quality shown by default (a switch hides them) <br><br>
-**Ver. 3.1.0**<br>
-Protein effect written to HGVS recommendations (silent, start codon, stop codon and frameshift changes) <br>
-Effect type for every variant, including splice site and splice region <br>
-Proportion of the signal carrying a heterozygous variant <br>
-Variants with poor signal quality can be hidden <br>
-Batch mode in the browser interface, with pairing of forward and reverse files by name <br>
-PDF report with sample ID and analyst <br>
-MANE Select transcript marked and used when a gene symbol is given <br>
-Genome position for genes downloaded from NCBI; ClinVar search link for human transcripts <br>
-Notice when a newer version is available <br>
-Windows installer: reference sequences packed into one archive (faster installation) <br><br>
-**Ver. 3.0.0**<br>
-Browser interface, command line tool and batch mode <br>
-References for any organism from NCBI, by organism and gene name or by accession <br>
-Signal quality rating for every variant and a warning for poor traces <br>
-Variant table export (TSV, CSV, JSON) and HTML report <br>
-Amino acid change corrected for SNVs in codons interrupted by an intron <br>
-Amino acid change no longer reported for SNVs in the 3' UTR <br>
+**Ver. 1.0.0** (first release)<br>
+Browser interface for one sample or many samples (batch), and a command line tool <br>
+References: built-in human RefSeq transcripts with MANE Select marked, any organism from NCBI by organism and gene name or by accession, or your own FASTA/GenBank file <br>
+Detection of SNVs and of homozygous and heterozygous insertions, deletions, duplications and delins variants, named in HGVS nomenclature <br>
+Protein effect and effect type for every variant, including splice site and splice region; codons interrupted by an intron handled correctly <br>
+Signal quality rating for every variant, peak shape check for heterozygous calls, and a warning for poor traces <br>
+Trimming view of the whole trace, peak height control, heterozygous indel view and alignment view <br>
+ClinVar and Franklin links and genome positions (hg38, hg19) for human variants <br>
+PDF report, variant table (TSV, CSV) and JSON export <br>
+Windows installer, and installation by one PowerShell line <br>
